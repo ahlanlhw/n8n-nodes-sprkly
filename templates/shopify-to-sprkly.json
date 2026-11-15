@@ -1,0 +1,242 @@
+{
+	"name": "Shopify new product to sprkly",
+	"nodes": [
+		{
+			"id": "9c976cdc-05b6-4750-8d46-0f1a73fc158b",
+			"name": "Overview",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-1000,
+				-80
+			],
+			"parameters": {
+				"content": "## Post each new Shopify product with sprkly\n\n### How it works\n- When you add a product to your store, a post is made for it.\n- The post uses up to 10 product photos. A product with no photo is skipped.\n- The caption is the title, the price and the link to the product.\n- On Instagram, the link also goes in the first comment.\n- The post waits for your OK. You get an email with an Approve link.\n- External ID `shopify-<product id>` means a product is never posted twice.\n- The product gets the tag sprkly-queued, or sprkly-error when the post was refused.\n\n### Setup\n- Needs the n8n-nodes-sprkly community node (Settings, Community Nodes).\n- Add your sprkly API key to **Hold post for your OK**. API docs: https://sprkly.app/docs/api\n- Add your Shopify login to the 2 Shopify nodes. The app needs to read and write products.\n- In **Settings**, set your store domain, your currency sign and your accounts as platform:handle.\n\n### Customize\n- Do you add photos after you make the product? Switch **New product** to Product Updated.\n- Change the wording in **Hold post for your OK**.\n- More: https://github.com/ahlanlhw/n8n-nodes-sprkly",
+				"height": 760,
+				"width": 520,
+				"color": 1
+			}
+		},
+		{
+			"id": "5279373f-1f50-431a-8233-29f6449f0f53",
+			"name": "Note: check",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-440,
+				60
+			],
+			"parameters": {
+				"content": "## Check the product\nA product with no photo, or with a sprkly tag already, stops here. Remove the sprkly-error tag to try a product again.",
+				"height": 440,
+				"width": 660,
+				"color": 7
+			}
+		},
+		{
+			"id": "27d6a424-193f-4de4-ad3e-947f33ab3c73",
+			"name": "Note: post and tag",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				240,
+				60
+			],
+			"parameters": {
+				"content": "## Post and tag\nThe link works once the product is live on your store. The tag shows what happened to each product.",
+				"height": 440,
+				"width": 460,
+				"color": 7
+			}
+		},
+		{
+			"id": "60d3bdca-4986-4567-8c4f-db12037f46e0",
+			"name": "New product",
+			"type": "n8n-nodes-base.shopifyTrigger",
+			"typeVersion": 1,
+			"position": [
+				-400,
+				320
+			],
+			"parameters": {
+				"authentication": "accessToken",
+				"topic": "products/create"
+			}
+		},
+		{
+			"id": "89c0c9a4-e3ce-4fc6-a427-b8614d66f6b1",
+			"name": "Settings",
+			"type": "n8n-nodes-base.set",
+			"typeVersion": 3.4,
+			"position": [
+				-180,
+				320
+			],
+			"parameters": {
+				"assignments": {
+					"assignments": [
+						{
+							"id": "f1",
+							"name": "storeDomain",
+							"type": "string",
+							"value": "yourstore.com"
+						},
+						{
+							"id": "f2",
+							"name": "currencySign",
+							"type": "string",
+							"value": "$"
+						},
+						{
+							"id": "f3",
+							"name": "accounts",
+							"type": "string",
+							"value": "instagram:yourhandle, facebook:Your Page"
+						},
+						{
+							"id": "f4",
+							"name": "hoursFromNow",
+							"type": "number",
+							"value": 1
+						}
+					]
+				},
+				"includeOtherFields": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "c75ee796-b051-436e-978c-9ff1f60f9810",
+			"name": "Has a photo, not posted yet?",
+			"type": "n8n-nodes-base.if",
+			"typeVersion": 2.2,
+			"position": [
+				40,
+				320
+			],
+			"parameters": {
+				"conditions": {
+					"options": {
+						"caseSensitive": true,
+						"leftValue": "",
+						"typeValidation": "loose",
+						"version": 2
+					},
+					"conditions": [
+						{
+							"id": "c1",
+							"leftValue": "={{ ($json.images || []).length > 0 && !/sprkly-(queued|error)/.test($json.tags || '') }}",
+							"rightValue": "",
+							"operator": {
+								"type": "boolean",
+								"operation": "true",
+								"singleValue": true
+							}
+						}
+					],
+					"combinator": "and"
+				},
+				"looseTypeValidation": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "443f13fa-8789-4b00-93e0-c396cac2b233",
+			"name": "Hold post for your OK",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				280,
+				220
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "create",
+				"accountMode": "name",
+				"accountNames": "={{ $json.accounts }}",
+				"caption": "={{ $json.title + '\\n' + (($json.variants || [])[0] && $json.variants[0].price ? $json.currencySign + $json.variants[0].price + '\\n' : '') + '\\nhttps://' + $json.storeDomain + '/products/' + $json.handle }}",
+				"scheduledTime": "={{ $now.plus({ hours: Number($json.hoursFromNow) || 1 }).toISO() }}",
+				"output": "resultRow",
+				"additionalFields": {
+					"mediaUrls": "={{ ($json.images || []).slice(0, 10).map(image => image.src).join(', ') }}",
+					"firstComment": "={{ 'https://' + $json.storeDomain + '/products/' + $json.handle }}",
+					"requiresApproval": true,
+					"approvalNote": "={{ 'New product: ' + $json.title }}",
+					"externalId": "={{ 'shopify-' + $json.id }}",
+					"requireExternalId": true
+				}
+			}
+		},
+		{
+			"id": "bdf5d393-9e27-461a-9f78-5bb96b663953",
+			"name": "Tag the product",
+			"type": "n8n-nodes-base.shopify",
+			"typeVersion": 1,
+			"position": [
+				500,
+				220
+			],
+			"parameters": {
+				"authentication": "accessToken",
+				"resource": "product",
+				"operation": "update",
+				"productId": "={{ $json.id }}",
+				"updateFields": {
+					"tags": "={{ [$json.tags, $json.ok ? 'sprkly-queued' : 'sprkly-error'].filter(Boolean).join(', ') }}"
+				}
+			}
+		}
+	],
+	"connections": {
+		"New product": {
+			"main": [
+				[
+					{
+						"node": "Settings",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Settings": {
+			"main": [
+				[
+					{
+						"node": "Has a photo, not posted yet?",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Has a photo, not posted yet?": {
+			"main": [
+				[
+					{
+						"node": "Hold post for your OK",
+						"type": "main",
+						"index": 0
+					}
+				],
+				[]
+			]
+		},
+		"Hold post for your OK": {
+			"main": [
+				[
+					{
+						"node": "Tag the product",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		}
+	},
+	"pinData": {},
+	"active": false,
+	"settings": {
+		"executionOrder": "v1"
+	}
+}

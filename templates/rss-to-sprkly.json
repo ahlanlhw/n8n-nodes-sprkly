@@ -1,0 +1,381 @@
+{
+	"name": "Blog RSS feed to sprkly",
+	"nodes": [
+		{
+			"id": "861d52fb-f389-46ef-af3c-fc8dbcde737e",
+			"name": "Overview",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-1000,
+				-80
+			],
+			"parameters": {
+				"content": "## Share each new blog post with sprkly\n\n### How it works\n- Every hour it checks your blog feed for new posts.\n- Each new post gets two captions. The short one is the title and the link, kept under 250 characters, for X, Threads and Bluesky.\n- The long one adds the summary from the feed, for LinkedIn and Facebook.\n- The feed's image goes on both posts when there is one.\n- External IDs `rss-<guid>-short` and `rss-<guid>-long` mean a post is never shared twice.\n- One row per blog post goes into your sheet: both statuses, both post IDs and any error.\n\n### Setup\n- Needs the n8n-nodes-sprkly community node (Settings, Community Nodes).\n- Add your sprkly API key to the 2 sprkly nodes. API docs: https://sprkly.app/docs/api\n- Put your blog's feed link in **New blog post**.\n- In **Settings**, write the accounts for each caption as platform:handle, with commas between them.\n- Add your Google login to **Log to sheet** and pick your sheet. Give it the columns Date, Title, Link, Short Status, Short Post ID, Long Status, Long Post ID and Errors.\n\n### Customize\n- Change the wording in **Build captions**.\n- Change the delay in **Settings**.\n- More: https://github.com/ahlanlhw/n8n-nodes-sprkly",
+				"height": 760,
+				"width": 520,
+				"color": 1
+			}
+		},
+		{
+			"id": "fe503dab-c807-4cf7-9002-6f799c097814",
+			"name": "Note: captions",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-440,
+				60
+			],
+			"parameters": {
+				"content": "## Two captions\nShort posts get the title and the link. Long posts also get the first 400 characters of the summary. No AI writes anything here.",
+				"height": 440,
+				"width": 660,
+				"color": 7
+			}
+		},
+		{
+			"id": "c791b19b-55ed-4bf0-8fbb-41b362f5966d",
+			"name": "Note: post and log",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				240,
+				60
+			],
+			"parameters": {
+				"content": "## Post and log\nOne post per caption, each to its own accounts. A refused post never stops the run. Its reason goes in the Errors column.",
+				"height": 440,
+				"width": 700,
+				"color": 7
+			}
+		},
+		{
+			"id": "fa60b78b-a93a-4788-9883-290e42c1c6ed",
+			"name": "New blog post",
+			"type": "n8n-nodes-base.rssFeedReadTrigger",
+			"typeVersion": 1,
+			"position": [
+				-400,
+				320
+			],
+			"parameters": {
+				"pollTimes": {
+					"item": [
+						{
+							"mode": "everyHour"
+						}
+					]
+				},
+				"feedUrl": "YOUR_FEED_URL"
+			}
+		},
+		{
+			"id": "32e3d12a-59a7-4c57-943d-a334d23c56bb",
+			"name": "Settings",
+			"type": "n8n-nodes-base.set",
+			"typeVersion": 3.4,
+			"position": [
+				-180,
+				320
+			],
+			"parameters": {
+				"assignments": {
+					"assignments": [
+						{
+							"id": "f1",
+							"name": "shortAccounts",
+							"type": "string",
+							"value": "x:yourhandle, threads:yourhandle, bluesky:yourhandle"
+						},
+						{
+							"id": "f2",
+							"name": "longAccounts",
+							"type": "string",
+							"value": "linkedin:Your Name, facebook:Your Page"
+						},
+						{
+							"id": "f3",
+							"name": "hoursFromNow",
+							"type": "number",
+							"value": 1
+						}
+					]
+				},
+				"includeOtherFields": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "f9b181cb-3c05-4682-8923-a20542d3f7eb",
+			"name": "Build captions",
+			"type": "n8n-nodes-base.set",
+			"typeVersion": 3.4,
+			"position": [
+				40,
+				320
+			],
+			"parameters": {
+				"assignments": {
+					"assignments": [
+						{
+							"id": "f1",
+							"name": "postKey",
+							"type": "string",
+							"value": "={{ String($json.guid || $json.link || '').trim() }}"
+						},
+						{
+							"id": "f2",
+							"name": "shortCaption",
+							"type": "string",
+							"value": "={{ (($json.title || '').trim().length > 248 - ($json.link || '').length ? ($json.title || '').trim().slice(0, 245 - ($json.link || '').length) + '...' : ($json.title || '').trim()) + '\\n\\n' + ($json.link || '') }}"
+						},
+						{
+							"id": "f3",
+							"name": "longCaption",
+							"type": "string",
+							"value": "={{ ($json.title || '').trim() + '\\n\\n' + (($json.contentSnippet || '').trim().length > 400 ? ($json.contentSnippet || '').trim().slice(0, 397) + '...' : ($json.contentSnippet || '').trim()) + '\\n\\n' + ($json.link || '') }}"
+						},
+						{
+							"id": "f4",
+							"name": "imageUrl",
+							"type": "string",
+							"value": "={{ $json.enclosure && String($json.enclosure.type || '').startsWith('image/') ? $json.enclosure.url : '' }}"
+						}
+					]
+				},
+				"includeOtherFields": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "f0aa7a8c-c658-4683-8f2a-dcf67015001e",
+			"name": "Post short version",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				280,
+				320
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "create",
+				"accountMode": "name",
+				"accountNames": "={{ $json.shortAccounts }}",
+				"caption": "={{ $json.shortCaption }}",
+				"scheduledTime": "={{ $now.plus({ hours: Number($json.hoursFromNow) || 1 }).toISO() }}",
+				"output": "resultRow",
+				"additionalFields": {
+					"mediaUrls": "={{ $json.imageUrl }}",
+					"externalId": "={{ $json.postKey ? 'rss-' + $json.postKey + '-short' : '' }}",
+					"requireExternalId": true
+				}
+			}
+		},
+		{
+			"id": "1e31f7b6-8063-458a-a192-bac1e131cf7e",
+			"name": "Post long version",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				500,
+				320
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "create",
+				"accountMode": "name",
+				"accountNames": "={{ $('Build captions').item.json.longAccounts }}",
+				"caption": "={{ $('Build captions').item.json.longCaption }}",
+				"scheduledTime": "={{ $now.plus({ hours: Number($('Build captions').item.json.hoursFromNow) || 1 }).toISO() }}",
+				"output": "resultRow",
+				"additionalFields": {
+					"mediaUrls": "={{ $('Build captions').item.json.imageUrl }}",
+					"externalId": "={{ $('Build captions').item.json.postKey ? 'rss-' + $('Build captions').item.json.postKey + '-long' : '' }}",
+					"requireExternalId": true
+				}
+			}
+		},
+		{
+			"id": "2b0b3529-53f2-4fbc-b46a-563489a214d2",
+			"name": "Log to sheet",
+			"type": "n8n-nodes-base.googleSheets",
+			"typeVersion": 4.7,
+			"position": [
+				720,
+				320
+			],
+			"parameters": {
+				"operation": "append",
+				"documentId": {
+					"__rl": true,
+					"value": "",
+					"mode": "url"
+				},
+				"sheetName": {
+					"__rl": true,
+					"value": "",
+					"mode": "list"
+				},
+				"columns": {
+					"mappingMode": "defineBelow",
+					"value": {
+						"Date": "={{ $now.toISO() }}",
+						"Title": "={{ $('Build captions').item.json.title }}",
+						"Link": "={{ $('Build captions').item.json.link }}",
+						"Short Status": "={{ $('Post short version').item.json.status }}",
+						"Short Post ID": "={{ $('Post short version').item.json.postId }}",
+						"Long Status": "={{ $json.status }}",
+						"Long Post ID": "={{ $json.postId }}",
+						"Errors": "={{ [$('Post short version').item.json.error, $json.error].filter(Boolean).join(' | ') }}"
+					},
+					"matchingColumns": [],
+					"schema": [
+						{
+							"id": "Date",
+							"displayName": "Date",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Title",
+							"displayName": "Title",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Link",
+							"displayName": "Link",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Short Status",
+							"displayName": "Short Status",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Short Post ID",
+							"displayName": "Short Post ID",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Long Status",
+							"displayName": "Long Status",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Long Post ID",
+							"displayName": "Long Post ID",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Errors",
+							"displayName": "Errors",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						}
+					]
+				},
+				"options": {}
+			}
+		}
+	],
+	"connections": {
+		"New blog post": {
+			"main": [
+				[
+					{
+						"node": "Settings",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Settings": {
+			"main": [
+				[
+					{
+						"node": "Build captions",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Build captions": {
+			"main": [
+				[
+					{
+						"node": "Post short version",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Post short version": {
+			"main": [
+				[
+					{
+						"node": "Post long version",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Post long version": {
+			"main": [
+				[
+					{
+						"node": "Log to sheet",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		}
+	},
+	"pinData": {},
+	"active": false,
+	"settings": {
+		"executionOrder": "v1"
+	}
+}
