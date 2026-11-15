@@ -17,7 +17,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/REPLACE_OWNER/n8n-nodes-sprkly"
+		"url": "https://github.com/ahlanlhw/n8n-nodes-sprkly"
 	},
 	"scripts": {
 		"build": "n8n-node build",
