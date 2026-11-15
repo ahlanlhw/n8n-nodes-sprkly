@@ -1,6 +1,9 @@
 {
 	"name": "n8n-nodes-sprkly",
 	"version": "0.2.0",
+	"publishConfig": {
+		"access": "public"
+	},
 	"description": "n8n node for sprkly: schedule social media posts, upload media and start a workflow when a post goes out or fails.",
 	"license": "MIT",
 	"homepage": "https://sprkly.app/?utm_source=github&utm_medium=integration&utm_campaign=n8n-node",
