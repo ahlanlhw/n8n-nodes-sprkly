@@ -1,0 +1,55 @@
+{
+	"name": "n8n-nodes-sprkly",
+	"version": "0.1.0",
+	"description": "n8n node for sprkly: schedule social media posts, upload media and start a workflow when a post goes out or fails.",
+	"license": "MIT",
+	"homepage": "https://sprkly.app/?utm_source=github&utm_medium=integration&utm_campaign=n8n-node",
+	"keywords": [
+		"n8n-community-node-package",
+		"n8n",
+		"sprkly",
+		"social media",
+		"scheduler"
+	],
+	"author": {
+		"name": "sprkly",
+		"email": "support@sprkly.app"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/REPLACE_OWNER/n8n-nodes-sprkly"
+	},
+	"scripts": {
+		"build": "n8n-node build",
+		"build:watch": "tsc --watch",
+		"dev": "n8n-node dev",
+		"lint": "n8n-node lint",
+		"lint:fix": "n8n-node lint --fix",
+		"release": "n8n-node release",
+		"prepublishOnly": "n8n-node prerelease"
+	},
+	"files": [
+		"dist"
+	],
+	"n8n": {
+		"n8nNodesApiVersion": 1,
+		"strict": true,
+		"credentials": [
+			"dist/credentials/SprklyApi.credentials.js"
+		],
+		"nodes": [
+			"dist/nodes/Sprkly/Sprkly.node.js",
+			"dist/nodes/SprklyTrigger/SprklyTrigger.node.js"
+		]
+	},
+	"devDependencies": {
+		"@n8n/node-cli": "^0.56.4",
+		"eslint": "9.32.0",
+		"prettier": "3.6.2",
+		"release-it": "^21.1.0",
+		"typescript": "5.9.2"
+	},
+	"peerDependencies": {
+		"n8n-workflow": "*"
+	}
+}

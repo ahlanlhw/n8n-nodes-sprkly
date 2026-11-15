@@ -1,0 +1,18 @@
+{
+	"node": "n8n-nodes-sprkly.sprkly",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Marketing & Content"],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://sprkly.app/docs/api"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://sprkly.app/docs/api"
+			}
+		]
+	}
+}
