@@ -586,3 +586,17 @@ test('trigger: External ID Starts With filters, and can be removed from sourceId
 		['1', '6'],
 	);
 });
+
+test('trigger: a post whose sourceId is empty once the prefix is removed is dropped', async () => {
+	const posts = [post('p1', 'sheet-'), post('p2', 'sheet-:telegram:acc-tg'), post('p3', 'sheet-3')];
+	const stripped = await runTrigger(posts, { externalIdPrefix: 'sheet-', stripPrefix: true });
+	assert.deepEqual(
+		stripped.map((p) => p.id),
+		['p3'],
+	);
+	const kept = await runTrigger(posts, { externalIdPrefix: 'sheet-' });
+	assert.deepEqual(
+		kept.map((p) => p.sourceId),
+		['sheet-', 'sheet-', 'sheet-3'],
+	);
+});

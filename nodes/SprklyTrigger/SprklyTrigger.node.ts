@@ -105,7 +105,7 @@ export class SprklyTrigger implements INodeType {
 				type: 'boolean',
 				default: false,
 				description:
-					"Whether to remove 'External ID Starts With' from the start of sourceId, so sheet-12 gives 12",
+					"Whether to remove 'External ID Starts With' from the start of sourceId, so sheet-12 gives 12. A post whose sourceId is then empty is skipped.",
 			},
 		],
 	};
@@ -115,10 +115,13 @@ export class SprklyTrigger implements INodeType {
 		const status = EVENT_STATUS[event];
 		const prefix = String(this.getNodeParameter('externalIdPrefix', '') ?? '');
 		const stripPrefix = this.getNodeParameter('stripPrefix', false) as boolean;
+		// With the prefix removed, an External ID that was only the prefix (sheet-) leaves no
+		// sourceId to find a row by, so that post is dropped.
 		const flat = (posts: IDataObject[]) =>
 			posts
 				.filter((post) => hasPrefix(post, prefix))
-				.map((post) => withFlatFields(post, prefix, stripPrefix));
+				.map((post) => withFlatFields(post, prefix, stripPrefix))
+				.filter((post) => !(prefix && stripPrefix && post.sourceId === ''));
 
 		// Test run: show the newest matching post so its fields can be mapped.
 		if (this.getMode() === 'manual') {
