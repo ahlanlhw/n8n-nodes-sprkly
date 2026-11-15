@@ -1,0 +1,623 @@
+{
+	"name": "sprkly: every action in one run",
+	"nodes": [
+		{
+			"id": "831ef5f0-94e8-4a35-9dd7-e683c1f33a21",
+			"name": "Overview",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-540,
+				80
+			],
+			"parameters": {
+				"content": "## Try every sprkly action in one run\n\n### How it works\n- Click Execute workflow. Each sprkly action runs once, from left to right.\n- It reads your API key and your connected accounts.\n- It adds a picture from a link. Then it downloads the same picture and uploads it.\n- It schedules one post 30 days from now, with the uploaded picture.\n- It reads the post, changes its caption and lists your scheduled posts.\n- The last step deletes the post, so nothing is published.\n- The External ID `demo-<run id>` gives every run its own post.\n- If the post is not scheduled, the run stops at **Stop: read the error**.\n- The two triggers below start on their own when the workflow is active.\n\n### Setup\n- Needs the n8n-nodes-sprkly community node (Settings, Community Nodes).\n- Add your sprkly API key to every sprkly node. API docs: https://sprkly.app/docs/api\n- In **Settings**, change account to one of your own accounts, written platform:handle.\n\n### Customize\n- Change daysAhead or imageUrl in **Settings**.\n- Remove **Delete a post** to keep the post. It then goes out on its day.\n- More: https://github.com/ahlanlhw/n8n-nodes-sprkly",
+				"height": 900,
+				"width": 480,
+				"color": 1
+			}
+		},
+		{
+			"id": "cea0cb61-3d9e-4b9e-8eff-aeb0a74f58ec",
+			"name": "Note: your account",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				100,
+				80
+			],
+			"parameters": {
+				"content": "## Your account\nChange account to one of your own accounts, written platform:handle. Use one account, so the demo makes one post.",
+				"height": 180,
+				"width": 400,
+				"color": 7
+			}
+		},
+		{
+			"id": "66eaac0e-2b22-4376-8e8b-782855e4786f",
+			"name": "Note: read the error",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				1700,
+				620
+			],
+			"parameters": {
+				"content": "## Not scheduled\nOpen the output of **Create a post** and read the error field. Nothing after it ran, so there is nothing to clean up.",
+				"height": 180,
+				"width": 340,
+				"color": 7
+			}
+		},
+		{
+			"id": "f131ab04-0a9c-4666-a8c6-eb4a0b923ea1",
+			"name": "Note: triggers",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-40,
+				620
+			],
+			"parameters": {
+				"content": "## The two triggers\nThese two start on their own when the workflow is active. The demo run above does not fire them, because its post is deleted before it goes out.",
+				"height": 500,
+				"width": 600,
+				"color": 7
+			}
+		},
+		{
+			"id": "53e5de98-3988-4a6a-bcff-79c2a6d7b991",
+			"name": "Run the demo",
+			"type": "n8n-nodes-base.manualTrigger",
+			"typeVersion": 1,
+			"position": [
+				0,
+				300
+			],
+			"parameters": {}
+		},
+		{
+			"id": "0ece8ffa-62a9-4902-9261-8641aea93281",
+			"name": "Settings",
+			"type": "n8n-nodes-base.set",
+			"typeVersion": 3.4,
+			"position": [
+				200,
+				300
+			],
+			"parameters": {
+				"assignments": {
+					"assignments": [
+						{
+							"id": "f1",
+							"name": "account",
+							"type": "string",
+							"value": "telegram:Sprkly app private test"
+						},
+						{
+							"id": "f2",
+							"name": "daysAhead",
+							"type": "number",
+							"value": 30
+						},
+						{
+							"id": "f3",
+							"name": "imageUrl",
+							"type": "string",
+							"value": "https://sprkly.app/og.png"
+						}
+					]
+				},
+				"options": {}
+			}
+		},
+		{
+			"id": "6a455206-1c5b-4a29-933c-4af38f3d0c99",
+			"name": "Get current API key",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				400,
+				300
+			],
+			"parameters": {
+				"resource": "account",
+				"operation": "getCurrentKey"
+			}
+		},
+		{
+			"id": "4cd8e215-3c39-4e53-8156-004720c00c55",
+			"name": "Get many connected accounts",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				600,
+				300
+			],
+			"parameters": {
+				"resource": "account",
+				"operation": "getAll",
+				"returnAll": false,
+				"limit": 5
+			},
+			"alwaysOutputData": true
+		},
+		{
+			"id": "40493def-3e8f-4d74-a93b-e8bb621782e5",
+			"name": "Add media from a URL",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				800,
+				300
+			],
+			"parameters": {
+				"resource": "media",
+				"operation": "addFromUrl",
+				"url": "={{ $('Settings').first().json.imageUrl }}"
+			},
+			"executeOnce": true
+		},
+		{
+			"id": "47812e76-cc88-4a9c-ae1c-8df00f3c80bd",
+			"name": "Download a picture",
+			"type": "n8n-nodes-base.httpRequest",
+			"typeVersion": 4.2,
+			"position": [
+				1000,
+				300
+			],
+			"parameters": {
+				"url": "={{ $('Settings').first().json.imageUrl }}",
+				"options": {
+					"response": {
+						"response": {
+							"responseFormat": "file",
+							"outputPropertyName": "data"
+						}
+					}
+				}
+			}
+		},
+		{
+			"id": "610aa75c-cb72-4c00-99f4-45d4506d6fb4",
+			"name": "Upload media",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				1200,
+				300
+			],
+			"parameters": {
+				"resource": "media",
+				"operation": "upload",
+				"binaryPropertyName": "data"
+			}
+		},
+		{
+			"id": "2037afe7-d36d-4484-abd2-c26d2510989d",
+			"name": "Create a post",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				1400,
+				300
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "create",
+				"accountMode": "name",
+				"accountNames": "={{ $('Settings').first().json.account }}",
+				"caption": "Hello from n8n. This is a demo post.",
+				"scheduledTime": "={{ $now.plus({ days: Number($('Settings').first().json.daysAhead) || 30 }).toFormat('yyyy-MM-dd HH:mm') }}",
+				"postNow": false,
+				"mediaIds": "={{ $('Upload media').item.json.mediaId }}",
+				"output": "resultRow",
+				"keepInputFields": false,
+				"additionalFields": {
+					"externalId": "={{ 'demo-' + ($execution.id || $now.toMillis()) }}",
+					"requireExternalId": true
+				}
+			}
+		},
+		{
+			"id": "c2c1d41d-d9b5-4356-9b42-6bbe23c98c08",
+			"name": "Scheduled?",
+			"type": "n8n-nodes-base.if",
+			"typeVersion": 2.2,
+			"position": [
+				1600,
+				300
+			],
+			"parameters": {
+				"conditions": {
+					"options": {
+						"caseSensitive": true,
+						"leftValue": "",
+						"typeValidation": "loose",
+						"version": 2
+					},
+					"conditions": [
+						{
+							"id": "c1",
+							"leftValue": "={{ $json.ok === true }}",
+							"rightValue": "",
+							"operator": {
+								"type": "boolean",
+								"operation": "true",
+								"singleValue": true
+							}
+						}
+					],
+					"combinator": "and"
+				},
+				"looseTypeValidation": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "5700af88-c9be-4ed8-b271-87c0ed25f3f4",
+			"name": "Stop: read the error",
+			"type": "n8n-nodes-base.noOp",
+			"typeVersion": 1,
+			"position": [
+				1800,
+				500
+			],
+			"parameters": {}
+		},
+		{
+			"id": "de2f95de-8131-4f57-83da-dac7fa998334",
+			"name": "Get a post",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				1800,
+				300
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "get",
+				"postId": "={{ $('Create a post').item.json.postId }}",
+				"simplify": true
+			}
+		},
+		{
+			"id": "326b73db-0439-4559-9d70-57e1ab44b532",
+			"name": "Update a post",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				2000,
+				300
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "update",
+				"postId": "={{ $('Create a post').item.json.postId }}",
+				"updateFields": {
+					"caption": "Edited from n8n."
+				}
+			}
+		},
+		{
+			"id": "907245a8-85aa-4ddd-8f8d-878fafbabde2",
+			"name": "Get many posts",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				2200,
+				300
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "getAll",
+				"returnAll": false,
+				"limit": 5,
+				"filters": {
+					"status": "scheduled"
+				},
+				"simplify": true
+			},
+			"alwaysOutputData": true
+		},
+		{
+			"id": "d1b079df-da02-4a16-b802-e6fc4b3393fc",
+			"name": "Delete a post",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				2400,
+				300
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "delete",
+				"postId": "={{ $('Create a post').first().json.postId }}"
+			},
+			"executeOnce": true
+		},
+		{
+			"id": "384be6d7-0286-44e0-948f-8e1fce51277a",
+			"name": "On post published",
+			"type": "n8n-nodes-sprkly.sprklyTrigger",
+			"typeVersion": 1,
+			"position": [
+				0,
+				780
+			],
+			"parameters": {
+				"pollTimes": {
+					"item": [
+						{
+							"mode": "everyX",
+							"value": 5,
+							"unit": "minutes"
+						}
+					]
+				},
+				"event": "postPublished"
+			}
+		},
+		{
+			"id": "7f332123-e5cc-494d-a4b7-45b35c12478c",
+			"name": "Published: what you get",
+			"type": "n8n-nodes-base.set",
+			"typeVersion": 3.4,
+			"position": [
+				240,
+				780
+			],
+			"parameters": {
+				"assignments": {
+					"assignments": [
+						{
+							"id": "f1",
+							"name": "sourceId",
+							"type": "string",
+							"value": "={{ $json.sourceId }}"
+						},
+						{
+							"id": "f2",
+							"name": "statusLabel",
+							"type": "string",
+							"value": "={{ $json.statusLabel }}"
+						},
+						{
+							"id": "f3",
+							"name": "link",
+							"type": "string",
+							"value": "={{ $json.link }}"
+						}
+					]
+				},
+				"options": {}
+			}
+		},
+		{
+			"id": "068aab40-c8b0-4fb7-9fce-55f4d0014e03",
+			"name": "On post failed",
+			"type": "n8n-nodes-sprkly.sprklyTrigger",
+			"typeVersion": 1,
+			"position": [
+				0,
+				960
+			],
+			"parameters": {
+				"pollTimes": {
+					"item": [
+						{
+							"mode": "everyX",
+							"value": 5,
+							"unit": "minutes"
+						}
+					]
+				},
+				"event": "postFailed"
+			}
+		},
+		{
+			"id": "f816dc7a-6f88-4212-b0c3-fd7788f67974",
+			"name": "Failed: what you get",
+			"type": "n8n-nodes-base.set",
+			"typeVersion": 3.4,
+			"position": [
+				240,
+				960
+			],
+			"parameters": {
+				"assignments": {
+					"assignments": [
+						{
+							"id": "f1",
+							"name": "sourceId",
+							"type": "string",
+							"value": "={{ $json.sourceId }}"
+						},
+						{
+							"id": "f2",
+							"name": "statusLabel",
+							"type": "string",
+							"value": "={{ $json.statusLabel }}"
+						},
+						{
+							"id": "f3",
+							"name": "error",
+							"type": "string",
+							"value": "={{ $json.error }}"
+						}
+					]
+				},
+				"options": {}
+			}
+		}
+	],
+	"connections": {
+		"Run the demo": {
+			"main": [
+				[
+					{
+						"node": "Settings",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Settings": {
+			"main": [
+				[
+					{
+						"node": "Get current API key",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Get current API key": {
+			"main": [
+				[
+					{
+						"node": "Get many connected accounts",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Get many connected accounts": {
+			"main": [
+				[
+					{
+						"node": "Add media from a URL",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Add media from a URL": {
+			"main": [
+				[
+					{
+						"node": "Download a picture",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Download a picture": {
+			"main": [
+				[
+					{
+						"node": "Upload media",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Upload media": {
+			"main": [
+				[
+					{
+						"node": "Create a post",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Create a post": {
+			"main": [
+				[
+					{
+						"node": "Scheduled?",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Scheduled?": {
+			"main": [
+				[
+					{
+						"node": "Get a post",
+						"type": "main",
+						"index": 0
+					}
+				],
+				[
+					{
+						"node": "Stop: read the error",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Get a post": {
+			"main": [
+				[
+					{
+						"node": "Update a post",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Update a post": {
+			"main": [
+				[
+					{
+						"node": "Get many posts",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Get many posts": {
+			"main": [
+				[
+					{
+						"node": "Delete a post",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"On post published": {
+			"main": [
+				[
+					{
+						"node": "Published: what you get",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"On post failed": {
+			"main": [
+				[
+					{
+						"node": "Failed: what you get",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		}
+	},
+	"pinData": {},
+	"active": false,
+	"settings": {
+		"executionOrder": "v1"
+	}
+}

@@ -18,3 +18,4 @@ Ready-made n8n workflows that post with sprkly. Install the community node `n8n-
 | `ai-carousel-to-sprkly.json` | A form brief becomes an AI image carousel that waits for your OK. | sprkly, OpenAI, image API |
 | `ai-video-to-sprkly.json` | A prompt becomes an AI video for Reels, TikTok and Shorts, held for your OK. | sprkly, Google, video API |
 | `blog-summary-to-sprkly.json` | AI sums up each new blog post. Posts wait for your OK. | sprkly, OpenAI, Telegram |
+| `all-actions-demo.json` | Runs every action once: a guided tour of the node. Used in the n8n review video. | sprkly |
