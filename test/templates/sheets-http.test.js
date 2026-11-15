@@ -1,12 +1,14 @@
-// Runs the Code nodes from workflow.json under plain Node, with fake n8n inputs.
-// No n8n, no network, no credentials. Run: node templates/sheets-content-calendar-http/test/code-nodes.test.js
+// Runs the Code nodes from templates/google-sheets-to-sprkly-http.json under plain Node, with fake n8n inputs.
+// No n8n, no network, no credentials. Run: node test/templates/sheets-http.test.js
 'use strict';
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const workflow = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'workflow.json'), 'utf8'));
+const workflow = JSON.parse(
+	fs.readFileSync(path.join(__dirname, '..', '..', 'templates', 'google-sheets-to-sprkly-http.json'), 'utf8'),
+);
 const codeOf = (name) => {
 	const node = workflow.nodes.find((n) => n.name === name);
 	assert.ok(node, `node "${name}" is in workflow.json`);

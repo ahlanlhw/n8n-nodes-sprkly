@@ -1,4 +1,0 @@
-Row ID,Status,Caption,Schedule Time,Accounts,Media URL,sprkly Post ID,Scheduled For,Link,Error
-1,Draft,Example post one. Write your own caption here.,2030-01-15 09:00,instagram:example_handle,https://example.com/example-photo-1.jpg,,,,
-2,Draft,Example post two. This one goes to two accounts.,2030-01-16 18:30,"instagram:example_handle, telegram:Example channel",https://example.com/example-photo-2.jpg,,,,
-3,Draft,Example post three. Write your own caption here.,2030-01-17 12:00,telegram:Example channel,https://example.com/example-photo-3.jpg,,,,

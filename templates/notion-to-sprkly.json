@@ -1,0 +1,534 @@
+{
+	"name": "Notion content calendar to sprkly, with a clash check",
+	"nodes": [
+		{
+			"id": "23451fd9-aff3-41b9-8d46-1d6f6d7388a1",
+			"name": "Overview",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-1000,
+				-80
+			],
+			"parameters": {
+				"content": "## Notion content calendar to sprkly, with a clash check\n\n### How it works\n- When a page in your Notion database changes to Status **Ready**, it reads the page.\n- It asks sprkly for the posts already scheduled, and counts the ones on the same accounts within 2 hours of the page's time.\n- None found: the page becomes a scheduled post. External ID `notion-<page id>` means a re-run never posts twice. The page gets back its Status, sprkly Post ID, time and any error.\n- Found some: nothing is booked. The page gets Status **Clash** and a short reason.\n- When a post goes out, the page gets **Published** and the link. When it fails, **Failed** and the reason.\n\n### Setup\n- Needs the n8n-nodes-sprkly community node (Settings, Community Nodes). More: https://github.com/ahlanlhw/n8n-nodes-sprkly\n- Add your sprkly API key to the 5 sprkly nodes. API docs: https://sprkly.app/docs/api\n- Add your Notion login to the 4 Notion nodes. Share the database with it, and pick it in **When a page changes**.\n- Properties: Caption (text), Publish Time (date with a time), Accounts (text or multi-select), Media URL (URL), Status (status), Link (URL), sprkly Post ID, Scheduled For and Error (text).\n- Status options: Ready, Scheduled, Clash, Error, Published, Failed.\n- Accounts looks like `instagram:myhandle, telegram:My channel`.\n\n### Customize\n- Change the 2 hours in **Count clashes**.",
+				"height": 840,
+				"width": 520,
+				"color": 1
+			}
+		},
+		{
+			"id": "3d2f8013-7ca4-43a4-bf32-dc976e94dbe2",
+			"name": "Note: check then book",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-440,
+				80
+			],
+			"parameters": {
+				"content": "## Check the day, then book\nThe two sprkly reads run once per run, not once per page. A page whose time clashes gets Status Clash. Pick a new time and set Status to Ready again.",
+				"height": 560,
+				"width": 2000,
+				"color": 7
+			}
+		},
+		{
+			"id": "fefd6840-5e7e-441f-98bf-63996bc74d16",
+			"name": "Note: track posts",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-440,
+				740
+			],
+			"parameters": {
+				"content": "## Track what happened\nWhen a post goes out or fails, the page is found by its id. Only posts with an External ID that starts with notion- reach this database.",
+				"height": 440,
+				"width": 760,
+				"color": 7
+			}
+		},
+		{
+			"id": "e665f159-d046-4b38-94d3-8d4e9359435e",
+			"name": "When a page changes",
+			"type": "n8n-nodes-base.notionTrigger",
+			"typeVersion": 1.1,
+			"position": [
+				-400,
+				320
+			],
+			"parameters": {
+				"pollTimes": {
+					"item": [
+						{
+							"mode": "everyX",
+							"value": 5,
+							"unit": "minutes"
+						}
+					]
+				},
+				"event": "pagedUpdatedInDatabase",
+				"dataSourceId": {
+					"__rl": true,
+					"value": "",
+					"mode": "list"
+				},
+				"simple": true
+			}
+		},
+		{
+			"id": "a1867ebd-d2d6-4fd1-9bb1-fdfb575f6ed0",
+			"name": "Only Ready pages",
+			"type": "n8n-nodes-base.filter",
+			"typeVersion": 2.2,
+			"position": [
+				-160,
+				320
+			],
+			"parameters": {
+				"conditions": {
+					"options": {
+						"caseSensitive": true,
+						"leftValue": "",
+						"typeValidation": "strict",
+						"version": 2
+					},
+					"conditions": [
+						{
+							"id": "is-ready",
+							"leftValue": "={{ $json.Status }}",
+							"rightValue": "Ready",
+							"operator": {
+								"type": "string",
+								"operation": "equals"
+							}
+						}
+					],
+					"combinator": "and"
+				},
+				"options": {}
+			}
+		},
+		{
+			"id": "b9321601-28d2-4b70-9197-1c6f11c2af17",
+			"name": "Get sprkly accounts",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				80,
+				480
+			],
+			"parameters": {
+				"resource": "account",
+				"operation": "getAll",
+				"returnAll": true
+			},
+			"executeOnce": true,
+			"alwaysOutputData": true
+		},
+		{
+			"id": "dd003869-f929-4255-be06-26ae22fd478d",
+			"name": "Get scheduled posts",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				320,
+				480
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "getAll",
+				"returnAll": true,
+				"filters": {
+					"status": "scheduled"
+				},
+				"simplify": true
+			},
+			"executeOnce": true,
+			"alwaysOutputData": true
+		},
+		{
+			"id": "57345051-d79c-4311-a59a-1b3b50914bb7",
+			"name": "Wait for both",
+			"type": "n8n-nodes-base.merge",
+			"typeVersion": 3.2,
+			"position": [
+				560,
+				320
+			],
+			"parameters": {
+				"mode": "chooseBranch",
+				"useDataOfInput": 1
+			}
+		},
+		{
+			"id": "a2d66f5b-3ea1-43f9-a7f3-a49810e585c6",
+			"name": "Count clashes",
+			"type": "n8n-nodes-base.set",
+			"typeVersion": 3.4,
+			"position": [
+				800,
+				320
+			],
+			"parameters": {
+				"assignments": {
+					"assignments": [
+						{
+							"id": "clashes",
+							"name": "clashes",
+							"value": "={{ $('Get scheduled posts').all().filter(p => p.json.scheduledTime && !String(p.json.externalId || '').startsWith('notion-' + $json.id) && Math.abs(DateTime.fromISO(p.json.scheduledTime).toMillis() - DateTime.fromISO(($json['Publish Time'] || {}).start || '').toMillis()) <= 2 * 60 * 60 * 1000 && $('Get sprkly accounts').all().some(a => (p.json.profileIds || []).includes(a.json.id) && [].concat($json.Accounts || []).join(',').toLowerCase().replace(/[@\\s]/g, '').split(',').includes((a.json.platform + ':' + a.json.handle).toLowerCase().replace(/[@\\s]/g, '')))).length }}",
+							"type": "number"
+						}
+					]
+				},
+				"includeOtherFields": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "b74b7890-408f-4925-9e45-5f0a2ddd8a9b",
+			"name": "Free to book?",
+			"type": "n8n-nodes-base.if",
+			"typeVersion": 2.2,
+			"position": [
+				1040,
+				320
+			],
+			"parameters": {
+				"conditions": {
+					"options": {
+						"caseSensitive": true,
+						"leftValue": "",
+						"typeValidation": "loose",
+						"version": 2
+					},
+					"conditions": [
+						{
+							"id": "no-clash",
+							"leftValue": "={{ $json.clashes }}",
+							"rightValue": 0,
+							"operator": {
+								"type": "number",
+								"operation": "equals"
+							}
+						}
+					],
+					"combinator": "and"
+				},
+				"looseTypeValidation": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "b1c208d7-8d6c-45c1-81c4-a52edc108fa4",
+			"name": "Book in sprkly",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				1280,
+				200
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "create",
+				"accountMode": "name",
+				"accountNames": "={{ [].concat($json.Accounts || []).join(', ') }}",
+				"caption": "={{ $json.Caption }}",
+				"scheduledTime": "={{ ($json['Publish Time'] || {}).start || '' }}",
+				"output": "resultRow",
+				"additionalFields": {
+					"externalId": "={{ 'notion-' + $json.id }}",
+					"mediaUrls": "={{ $json['Media URL'] || '' }}",
+					"requireExternalId": true
+				}
+			}
+		},
+		{
+			"id": "b7d17ab3-6581-4f76-b905-345f4eaef6a2",
+			"name": "Write result to page",
+			"type": "n8n-nodes-base.notion",
+			"typeVersion": 2.2,
+			"position": [
+				1520,
+				200
+			],
+			"parameters": {
+				"resource": "databasePage",
+				"operation": "update",
+				"pageId": {
+					"__rl": true,
+					"value": "={{ $json.id }}",
+					"mode": "id"
+				},
+				"propertiesUi": {
+					"propertyValues": [
+						{
+							"key": "Status|status",
+							"statusValue": "={{ $json.status }}"
+						},
+						{
+							"key": "sprkly Post ID|rich_text",
+							"textContent": "={{ $json.postId }}"
+						},
+						{
+							"key": "Scheduled For|rich_text",
+							"textContent": "={{ $json.scheduledFor }}"
+						},
+						{
+							"key": "Error|rich_text",
+							"textContent": "={{ $json.error }}"
+						}
+					]
+				},
+				"options": {}
+			}
+		},
+		{
+			"id": "8330011d-4d8f-4d94-880d-44f48612af39",
+			"name": "Mark page as Clash",
+			"type": "n8n-nodes-base.notion",
+			"typeVersion": 2.2,
+			"position": [
+				1280,
+				440
+			],
+			"parameters": {
+				"resource": "databasePage",
+				"operation": "update",
+				"pageId": {
+					"__rl": true,
+					"value": "={{ $json.id }}",
+					"mode": "id"
+				},
+				"propertiesUi": {
+					"propertyValues": [
+						{
+							"key": "Status|status",
+							"statusValue": "Clash"
+						},
+						{
+							"key": "Error|rich_text",
+							"textContent": "={{ 'Clash: ' + $json.clashes + ($json.clashes === 1 ? ' post is' : ' posts are') + ' already set for these accounts within 2 hours of this time. Pick another time, then set Status to Ready again.' }}"
+						}
+					]
+				},
+				"options": {}
+			}
+		},
+		{
+			"id": "b26a2a0c-99e3-43f7-8962-9ab099c07345",
+			"name": "When a post goes out",
+			"type": "n8n-nodes-sprkly.sprklyTrigger",
+			"typeVersion": 1,
+			"position": [
+				-400,
+				880
+			],
+			"parameters": {
+				"pollTimes": {
+					"item": [
+						{
+							"mode": "everyX",
+							"value": 5,
+							"unit": "minutes"
+						}
+					]
+				},
+				"event": "postPublished",
+				"externalIdPrefix": "notion-",
+				"stripPrefix": true
+			}
+		},
+		{
+			"id": "a3c8f153-bb9b-4924-b869-88b4c48ce4a0",
+			"name": "When a post fails",
+			"type": "n8n-nodes-sprkly.sprklyTrigger",
+			"typeVersion": 1,
+			"position": [
+				-400,
+				1060
+			],
+			"parameters": {
+				"pollTimes": {
+					"item": [
+						{
+							"mode": "everyX",
+							"value": 5,
+							"unit": "minutes"
+						}
+					]
+				},
+				"event": "postFailed",
+				"externalIdPrefix": "notion-",
+				"stripPrefix": true
+			}
+		},
+		{
+			"id": "69db9dad-6ce9-4f2d-b919-7f144cceacd1",
+			"name": "Write post status to page",
+			"type": "n8n-nodes-base.notion",
+			"typeVersion": 2.2,
+			"position": [
+				-120,
+				960
+			],
+			"parameters": {
+				"resource": "databasePage",
+				"operation": "update",
+				"pageId": {
+					"__rl": true,
+					"value": "={{ $json.sourceId }}",
+					"mode": "id"
+				},
+				"propertiesUi": {
+					"propertyValues": [
+						{
+							"key": "Status|status",
+							"statusValue": "={{ $json.statusLabel }}"
+						},
+						{
+							"key": "Link|url",
+							"urlValue": "={{ $json.link }}",
+							"ignoreIfEmpty": true
+						},
+						{
+							"key": "Error|rich_text",
+							"textContent": "={{ $json.error }}"
+						}
+					]
+				},
+				"options": {}
+			}
+		}
+	],
+	"connections": {
+		"When a page changes": {
+			"main": [
+				[
+					{
+						"node": "Only Ready pages",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Only Ready pages": {
+			"main": [
+				[
+					{
+						"node": "Wait for both",
+						"type": "main",
+						"index": 0
+					},
+					{
+						"node": "Get sprkly accounts",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Get sprkly accounts": {
+			"main": [
+				[
+					{
+						"node": "Get scheduled posts",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Get scheduled posts": {
+			"main": [
+				[
+					{
+						"node": "Wait for both",
+						"type": "main",
+						"index": 1
+					}
+				]
+			]
+		},
+		"Wait for both": {
+			"main": [
+				[
+					{
+						"node": "Count clashes",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Count clashes": {
+			"main": [
+				[
+					{
+						"node": "Free to book?",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Free to book?": {
+			"main": [
+				[
+					{
+						"node": "Book in sprkly",
+						"type": "main",
+						"index": 0
+					}
+				],
+				[
+					{
+						"node": "Mark page as Clash",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Book in sprkly": {
+			"main": [
+				[
+					{
+						"node": "Write result to page",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"When a post goes out": {
+			"main": [
+				[
+					{
+						"node": "Write post status to page",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"When a post fails": {
+			"main": [
+				[
+					{
+						"node": "Write post status to page",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		}
+	},
+	"pinData": {},
+	"active": false,
+	"settings": {
+		"executionOrder": "v1"
+	}
+}
