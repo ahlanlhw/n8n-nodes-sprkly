@@ -44,8 +44,10 @@ function builtSprkly() {
 }
 
 // Every version a node class offers: a versioned node lists them, a plain one has description.version.
-function versionsOf(exported) {
-	const NodeClass = Object.values(exported).find((value) => typeof value === 'function');
+// The class is the export named like the file (Html.node.js also exports a helper function).
+function versionsOf(nodeFile) {
+	const exported = require(nodeFile);
+	const NodeClass = exported[path.basename(nodeFile, '.node.js')];
 	const instance = new NodeClass();
 	if (instance.nodeVersions) return Object.keys(instance.nodeVersions).map(Number);
 	const version = instance.description.version;
@@ -111,7 +113,7 @@ for (const file of files) {
 			for (const node of steps.filter((n) => !n.type.startsWith('n8n-nodes-sprkly.'))) {
 				const nodeFile = n8nNodeFile(node.type);
 				assert.ok(nodeFile, `${node.type} exists`);
-				const versions = versionsOf(require(nodeFile));
+				const versions = versionsOf(nodeFile);
 				assert.ok(versions.includes(node.typeVersion), `${node.name}: ${node.typeVersion} in [${versions}]`);
 			}
 		});
@@ -141,9 +143,21 @@ for (const file of files) {
 			assert.doesNotMatch(text, /sk_live_|sk_test_/);
 			assert.doesNotMatch(text, /Bearer\s+[A-Za-z0-9._~+/-]{12,}/);
 			assert.doesNotMatch(text, /(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{44}(?![A-Za-z0-9_-])/, 'no 44-char Google id');
-			assert.doesNotMatch(text, /\b(app|tbl)[A-Za-z0-9]{14}\b/, 'no Airtable base or table id');
+			// appendAttribution is a Form option key, not an Airtable id.
+			assert.doesNotMatch(
+				text.replace(/"appendAttribution"/g, '""'),
+				/\b(app|tbl)[A-Za-z0-9]{14}\b/,
+				'no Airtable base or table id',
+			);
 			assert.doesNotMatch(text, /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}/, 'no email');
+			// Node ids, and the row ids n8n gives each If / Filter condition and Set assignment.
 			const nodeIds = new Set(workflow.nodes.map((node) => node.id));
+			for (const node of workflow.nodes) {
+				const p = node.parameters || {};
+				for (const row of [...(p.conditions?.conditions || []), ...(p.assignments?.assignments || [])]) {
+					nodeIds.add(row.id);
+				}
+			}
 			const uuids = text.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi) || [];
 			for (const uuid of uuids) assert.ok(nodeIds.has(uuid), `UUID ${uuid} is a node id`);
 			for (const node of workflow.nodes) {
