@@ -1,0 +1,717 @@
+{
+  "name": "Google Sheets content calendar to sprkly",
+  "nodes": [
+    {
+      "id": "0f57643e-c0c8-41b6-83ff-fc27f71e28e3",
+      "name": "Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        -80
+      ],
+      "parameters": {
+        "content": "## Post from a Google Sheet with sprkly\n\n### How it works\n- Every 15 minutes it reads the rows with Status **Approved**.\n- It checks each row: a Row ID, a caption, a time that has not come yet, at least one account, and web links for media.\n- A bad row gets Status **Error** and a plain reason.\n- A good row goes to sprkly as a scheduled post. External ID `sheet-<Row ID>` means a re-run never posts twice.\n- The row gets Status **Scheduled**, the sprkly Post ID and the time.\n- When the post goes out, the row gets **Published** and the link. When it fails, **Failed** and the reason.\n\n### Setup\n- Needs the community node `n8n-nodes-sprkly`. Install steps: https://github.com/ahlanlhw/n8n-nodes-sprkly#install\n- n8n has not verified this node, so it runs on self-hosted n8n only.\n- Tested on n8n 2.47.7 with n8n-nodes-sprkly 0.1.0.\n- Make a sheet with these columns: Row ID, Status, Caption, Schedule Time, Accounts, Media URL, sprkly Post ID, Scheduled For, Link, Error.\n- Add your sprkly API credential to the 4 sprkly nodes. API docs: https://sprkly.app/docs/api\n- Add your Google Sheets credential to the 3 sheet nodes, and pick your sheet in each.\n- Set your time zone in Workflow settings. Times in the sheet use it.\n\n### Customization\n- Change how often it runs in **Every 15 minutes**.\n- Add a Title column for TikTok and YouTube, and map it in **Schedule post in sprkly**.",
+        "height": 860,
+        "width": 520,
+        "color": 1
+      }
+    },
+    {
+      "id": "7e2af1f2-7d0c-4b07-89dd-38832b5f7e12",
+      "name": "Note: read and check",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -440,
+        80
+      ],
+      "parameters": {
+        "content": "## Read and check approved rows\nEvery 15 minutes, only rows with Status Approved. Each row needs a Row ID, a caption, a time that has not come yet, and an account. A row that fails gets Status Error and the reason.",
+        "height": 420,
+        "width": 660,
+        "color": 7
+      }
+    },
+    {
+      "id": "0fb9f202-ebac-4efc-b569-eaba891db0c2",
+      "name": "Note: match accounts",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        240,
+        80
+      ],
+      "parameters": {
+        "content": "## Match accounts\nOne call to sprkly per run gets your accounts. Write each one as platform:handle, like instagram:myhandle or telegram:My channel. Put commas between several.",
+        "height": 420,
+        "width": 440,
+        "color": 7
+      }
+    },
+    {
+      "id": "dd786dc9-4066-4491-8995-3b86a8654e18",
+      "name": "Warning: posts for real",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        700,
+        0
+      ],
+      "parameters": {
+        "content": "## This posts for real\nAn empty time means \"post now\" in the sprkly API. This workflow refuses that: a row with no time stops at **Check each row** and never gets here.",
+        "height": 500,
+        "width": 440,
+        "color": 3
+      }
+    },
+    {
+      "id": "21c734a3-28a3-4054-9910-309a52fcf61c",
+      "name": "Note: write back",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        80
+      ],
+      "parameters": {
+        "content": "## Write the result back\nExternal ID sheet-<Row ID> stops double posts. A repeat writes the first post's ID, not a new post. Any other error goes in the Error column.",
+        "height": 520,
+        "width": 480,
+        "color": 7
+      }
+    },
+    {
+      "id": "bb70ec00-3f48-415e-96ac-05447e7bc5e8",
+      "name": "Note: track posts",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -440,
+        620
+      ],
+      "parameters": {
+        "content": "## Track what happened\nsprkly checks for posts that went out or failed. The row is found by its Row ID, taken from the post's External ID. Posts made outside this sheet are skipped.",
+        "height": 440,
+        "width": 1100,
+        "color": 7
+      }
+    },
+    {
+      "id": "a1092252-2b6e-47c2-bed2-40df15dcb9ca",
+      "name": "Every 15 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -400,
+        320
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "e297c286-346c-43ff-913c-a6bb767b7855",
+      "name": "Get approved rows",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -180,
+        320
+      ],
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Status",
+              "lookupValue": "Approved"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "87b1a8ac-da57-406a-bc6e-5d8856f73196",
+      "name": "Check each row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40,
+        320
+      ],
+      "parameters": {
+        "jsCode": "// Check every Approved row before it reaches sprkly.\n// A row that fails gets Status \"Error\" and a plain reason.\n// A time with no zone is read in this workflow's time zone (Workflow settings).\nconst zone = (typeof $now !== 'undefined' && $now && $now.zoneName) || 'UTC';\nconst nowMs = Date.now();\n\nfunction zoneOffset(ms) {\n  const parts = new Intl.DateTimeFormat('en-US', {\n    timeZone: zone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',\n    hour: '2-digit', minute: '2-digit', second: '2-digit',\n  }).formatToParts(new Date(ms));\n  const get = (type) => Number(parts.find((p) => p.type === type).value);\n  const wall = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));\n  return wall - Math.floor(ms / 1000) * 1000;\n}\n\n// \"2026-12-01 09:00\", \"2026-12-01 9:00:00\", \"2026-12-01T09:00\" or a time with Z or +08:00.\nfunction toIso(text) {\n  if (/T\\d{1,2}:\\d{2}(:\\d{2})?(\\.\\d+)?([zZ]|[+-]\\d{2}:?\\d{2})$/.test(text)) {\n    const date = new Date(text);\n    return Number.isNaN(date.getTime()) ? null : date.toISOString();\n  }\n  const m = text.match(/^(\\d{4})-(\\d{1,2})-(\\d{1,2})[T ](\\d{1,2}):(\\d{2})(?::(\\d{2}))?$/);\n  if (!m) return null;\n  const [y, mo, d, h, mi, s] = [m[1], m[2], m[3], m[4], m[5], m[6] || '0'].map(Number);\n  const wall = Date.UTC(y, mo - 1, d, h, mi, s);\n  const check = new Date(wall);\n  if (h > 23 || mi > 59 || s > 59 || check.getUTCMonth() !== mo - 1 || check.getUTCDate() !== d) return null;\n  const firstGuess = wall - zoneOffset(wall);\n  return new Date(wall - zoneOffset(firstGuess)).toISOString();\n}\n\nconst out = [];\nfor (const item of $input.all()) {\n  const row = item.json;\n  const fail = (reason) => out.push({ json: { row_number: row.row_number, valid: false, Status: 'Error', Error: reason } });\n  const rowId = String(row['Row ID'] ?? '').trim();\n  const caption = String(row['Caption'] ?? '').trim();\n  const timeText = String(row['Schedule Time'] ?? '').trim();\n  const accounts = String(row['Accounts'] ?? '').split(/[,\\n]/).map((s) => s.trim()).filter(Boolean);\n  const mediaUrls = String(row['Media URL'] ?? '').split(/[\\s,]+/).filter(Boolean);\n\n  if (!rowId) { fail('Row ID is empty. Give each row its own ID, like 1, 2, 3.'); continue; }\n  if (rowId.includes(':')) { fail('Row ID cannot have a colon in it.'); continue; }\n  if (!caption) { fail('Caption is empty.'); continue; }\n  // The sprkly API posts right away when there is no time. This workflow never does.\n  if (!timeText) { fail('Schedule Time is empty. This workflow never posts right away. Add a time like 2026-12-01 09:00.'); continue; }\n  const scheduledTime = toIso(timeText);\n  if (!scheduledTime) { fail('Schedule Time \"' + timeText + '\" is not a time. Use a time like 2026-12-01 09:00.'); continue; }\n  if (Date.parse(scheduledTime) <= nowMs) { fail('Schedule Time is in the past. Pick a time that has not come yet.'); continue; }\n  if (accounts.length === 0) { fail('Accounts is empty. Add one, like instagram:myhandle.'); continue; }\n  const badUrl = mediaUrls.find((url) => !/^https?:\\/\\//i.test(url));\n  if (badUrl) { fail('Media URL \"' + badUrl + '\" is not a web link. It must start with https://'); continue; }\n\n  out.push({ json: { row_number: row.row_number, valid: true, rowId, caption, scheduledTime, accounts, mediaUrls: mediaUrls.join(',') } });\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "dfe32c4f-cb57-457c-bb16-e6e0fccabf60",
+      "name": "Get sprkly accounts once",
+      "type": "n8n-nodes-sprkly.sprkly",
+      "typeVersion": 1,
+      "position": [
+        300,
+        320
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "account",
+        "operation": "getAll",
+        "returnAll": true
+      }
+    },
+    {
+      "id": "9a77df80-aaaf-48ab-b350-e825011b7faf",
+      "name": "Match accounts to rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        320
+      ],
+      "parameters": {
+        "jsCode": "// One account list per run, from \"Get sprkly accounts once\", matched to every row.\n// Each account in a row is platform:handle, like instagram:myhandle or telegram:My channel.\nconst accounts = $input.all().map((item) => item.json).filter((account) => account && account.id);\nconst norm = (value) => String(value ?? '').trim().replace(/^@/, '').toLowerCase();\n\nconst out = [];\nfor (const { json: row } of $('Check each row').all()) {\n  if (!row.valid) {\n    out.push({ json: { row_number: row.row_number, ready: false, Status: row.Status, Error: row.Error } });\n    continue;\n  }\n  const ids = [];\n  let problem = '';\n  for (const ref of row.accounts) {\n    const cut = ref.indexOf(':');\n    if (cut < 1) { problem = '\"' + ref + '\" is not platform:handle. Write it like instagram:myhandle.'; break; }\n    const platform = norm(ref.slice(0, cut));\n    const handle = norm(ref.slice(cut + 1));\n    const match = accounts.find((account) => norm(account.platform) === platform && norm(account.handle) === handle);\n    if (!match) { problem = 'No connected sprkly account is ' + ref + '. Check the platform and the name in sprkly.'; break; }\n    if (!ids.includes(String(match.id))) ids.push(String(match.id));\n  }\n  if (problem) {\n    out.push({ json: { row_number: row.row_number, ready: false, Status: 'Error', Error: problem } });\n    continue;\n  }\n  out.push({ json: {\n    row_number: row.row_number, ready: true, rowId: row.rowId, caption: row.caption,\n    scheduledTime: row.scheduledTime, profileIds: ids, mediaUrls: row.mediaUrls,\n  } });\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "34b8c727-fe28-4113-b4ae-13e1f91fb35c",
+      "name": "Ready to schedule?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        760,
+        320
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "row-is-ready",
+              "leftValue": "={{ $json.ready }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "428bf0e0-8370-4969-adce-a514c5a2d6ba",
+      "name": "Schedule post in sprkly",
+      "type": "n8n-nodes-sprkly.sprkly",
+      "typeVersion": 1,
+      "position": [
+        960,
+        220
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "resource": "post",
+        "operation": "create",
+        "profileIds": "={{ $json.profileIds }}",
+        "caption": "={{ $json.caption }}",
+        "scheduledTime": "={{ $json.scheduledTime }}",
+        "additionalFields": {
+          "externalId": "=sheet-{{ $json.rowId }}",
+          "mediaUrls": "={{ $json.mediaUrls }}"
+        }
+      }
+    },
+    {
+      "id": "e29e7659-90ed-4188-b6a9-f3c913ab1df2",
+      "name": "Read the sprkly answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        220
+      ],
+      "parameters": {
+        "jsCode": "// sprkly answers once per row sent, in the same order. Turn each answer into the row's new Status.\nconst sent = $('Match accounts to rows').all().filter((item) => item.json.ready);\nconst label = { scheduled: 'Scheduled', pending_approval: 'Scheduled', draft: 'Scheduled', posted: 'Published', failed: 'Failed' };\n\nreturn $input.all().map((item, index) => {\n  const answer = item.json;\n  const row = (sent[index] && sent[index].json) || {};\n  const base = { row_number: row.row_number };\n\n  if (!answer.error) {\n    return { json: { ...base, Status: 'Scheduled', 'sprkly Post ID': (answer.postIds || []).join(', '),\n      'Scheduled For': answer.scheduledTime || row.scheduledTime, Error: '' } };\n  }\n\n  // Same External ID as an earlier post: nothing new was posted. Keep the first post's ID.\n  const text = String(answer.error) + ' ' + String(answer.description || '');\n  if (text.includes('duplicate_external_id') || text.includes(\"'External ID' already exists\")) {\n    const id = (text.match(/already exists: ([\\w-]+)/) || text.match(/existing post is ([\\w-]+)/) || [])[1] || '';\n    const status = (text.match(/\\(status (\\w+)\\)/) || [])[1];\n    return { json: { ...base, Status: label[status] || 'Scheduled', 'sprkly Post ID': id, Error: '' } };\n  }\n\n  return { json: { ...base, Status: 'Error', Error: [answer.error, answer.description].filter(Boolean).join(' ') } };\n});\n"
+      }
+    },
+    {
+      "id": "812fe3ec-dddd-4f1c-995a-a2cecc20f499",
+      "name": "Write result to row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1440,
+        400
+      ],
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Row ID",
+              "displayName": "Row ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Caption",
+              "displayName": "Caption",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Schedule Time",
+              "displayName": "Schedule Time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Accounts",
+              "displayName": "Accounts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Media URL",
+              "displayName": "Media URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sprkly Post ID",
+              "displayName": "sprkly Post ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Scheduled For",
+              "displayName": "Scheduled For",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Link",
+              "displayName": "Link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Error",
+              "displayName": "Error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      }
+    },
+    {
+      "id": "e6e3b629-d26d-4f26-bdac-2a2f5854e7e5",
+      "name": "When a post goes out",
+      "type": "n8n-nodes-sprkly.sprklyTrigger",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        780
+      ],
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 5,
+              "unit": "minutes"
+            }
+          ]
+        },
+        "event": "postPublished"
+      }
+    },
+    {
+      "id": "e2b600be-c161-4880-9e79-e6fc7af1a12b",
+      "name": "When a post fails",
+      "type": "n8n-nodes-sprkly.sprklyTrigger",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        960
+      ],
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 5,
+              "unit": "minutes"
+            }
+          ]
+        },
+        "event": "postFailed"
+      }
+    },
+    {
+      "id": "72a89a85-05de-4291-99f7-30a6e03e9b5a",
+      "name": "Find the row for the post",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -140,
+        860
+      ],
+      "parameters": {
+        "jsCode": "// The post's External ID is sheet-<Row ID>. With several accounts sprkly adds\n// :platform:account to it, so take the part before the first colon.\n// Posts made outside this sheet have no sheet- ID and are skipped.\nconst out = [];\nfor (const { json: post } of $input.all()) {\n  const found = String(post.externalId ?? '').match(/^sheet-([^:]+)/);\n  if (!found) continue;\n  if (post.status === 'posted') {\n    out.push({ json: { 'Row ID': found[1], Status: 'Published', Link: post.permalink || '', Error: '' } });\n  } else if (post.status === 'failed') {\n    out.push({ json: { 'Row ID': found[1], Status: 'Failed', Error: post.failedReason || 'sprkly did not give a reason.' } });\n  }\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "51f7d4a8-b698-490c-8965-989cad286ea8",
+      "name": "Write post status to row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        120,
+        860
+      ],
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "Row ID"
+          ],
+          "schema": [
+            {
+              "id": "Row ID",
+              "displayName": "Row ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Caption",
+              "displayName": "Caption",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Schedule Time",
+              "displayName": "Schedule Time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Accounts",
+              "displayName": "Accounts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Media URL",
+              "displayName": "Media URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sprkly Post ID",
+              "displayName": "sprkly Post ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Scheduled For",
+              "displayName": "Scheduled For",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Link",
+              "displayName": "Link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Error",
+              "displayName": "Error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {
+          "handlingExtraData": "ignoreIt"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 15 minutes": {
+      "main": [
+        [
+          {
+            "node": "Get approved rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get approved rows": {
+      "main": [
+        [
+          {
+            "node": "Check each row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check each row": {
+      "main": [
+        [
+          {
+            "node": "Get sprkly accounts once",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get sprkly accounts once": {
+      "main": [
+        [
+          {
+            "node": "Match accounts to rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match accounts to rows": {
+      "main": [
+        [
+          {
+            "node": "Ready to schedule?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ready to schedule?": {
+      "main": [
+        [
+          {
+            "node": "Schedule post in sprkly",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Write result to row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule post in sprkly": {
+      "main": [
+        [
+          {
+            "node": "Read the sprkly answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read the sprkly answer": {
+      "main": [
+        [
+          {
+            "node": "Write result to row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When a post goes out": {
+      "main": [
+        [
+          {
+            "node": "Find the row for the post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When a post fails": {
+      "main": [
+        [
+          {
+            "node": "Find the row for the post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find the row for the post": {
+      "main": [
+        [
+          {
+            "node": "Write post status to row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
