@@ -295,7 +295,10 @@ export async function pagePostsChangedSince(
 	return { posts, cursor, seenAtCursor: [...seenAtCursor] };
 }
 
-/** At most 10 fields, the most used first (n8n UX guideline for a "Simplify" option). */
+/**
+ * The most used fields first (n8n UX guideline for a "Simplify" option). deleted and deletedAt
+ * stay: a binned post keeps its status, so without them it reads as still going out.
+ */
 export function simplifyPost(post: IDataObject): IDataObject {
 	return {
 		id: post.id,
@@ -308,5 +311,7 @@ export function simplifyPost(post: IDataObject): IDataObject {
 		failedReason: post.failedReason,
 		permalink: post.permalink,
 		externalId: post.externalId,
+		deleted: post.deleted,
+		deletedAt: post.deletedAt,
 	};
 }
