@@ -328,6 +328,62 @@ for (const [what, existing, error] of [
 	});
 }
 
+// ----- Require External ID -----
+
+const NO_ID = 'This row has no ID. Give each row its own ID.';
+const SEPARATOR_ID =
+	"This row's ID looks empty (it ends with a separator). Give each row its own ID.";
+
+test('require id: empty, spaces and sheet- are row problems in Result Row, nothing is sent', async () => {
+	const { out, calls } = await runCreate({
+		items: [sheetRow(1), sheetRow(2), sheetRow(3), sheetRow(4)],
+		params: rowParams({
+			additionalFields: (item) => ({
+				externalId: ['', '   ', 'sheet-', 'sheet-4'][item.json['Row ID'] - 1],
+				requireExternalId: true,
+			}),
+		}),
+	});
+	assert.deepEqual(
+		out.map((row) => [row.status, row.error]),
+		[
+			['Error', NO_ID],
+			['Error', NO_ID],
+			['Error', SEPARATOR_ID],
+			['Scheduled', ''],
+		],
+	);
+	assert.equal(calls.filter((call) => call.method === 'POST').length, 1);
+});
+
+for (const [externalId, message] of [
+	['', NO_ID],
+	['  ', NO_ID],
+	['sheet-', SEPARATOR_ID],
+]) {
+	test(`require id: "${externalId}" throws in API Response`, async () => {
+		await assert.rejects(
+			runCreate({
+				params: {
+					profileIds: ['acc-ig'],
+					caption: 'Hi',
+					scheduledTime: '2099-03-01T09:00:00Z',
+					additionalFields: { externalId, requireExternalId: true },
+				},
+			}),
+			(error) => error.message === message,
+		);
+	});
+}
+
+test('require id off: an empty External ID still posts', async () => {
+	const { out } = await runCreate({
+		items: [sheetRow(1)],
+		params: rowParams({ additionalFields: { externalId: '' } }),
+	});
+	assert.equal(out[0].status, 'Scheduled');
+});
+
 test('result row 400: Error with the API text', async () => {
 	const { out } = await runCreate({
 		items: [sheetRow(1)],

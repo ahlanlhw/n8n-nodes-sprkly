@@ -270,6 +270,14 @@ export const postFields: INodeProperties[] = [
 				description: 'What the post is for. A label for your own reports.',
 			},
 			{
+				displayName: 'Require External ID',
+				name: 'requireExternalId',
+				type: 'boolean',
+				default: false,
+				description:
+					'Whether to refuse an item that has no External ID. An ID that ends with -, _ or : counts as empty, so sheet- with no row number is refused.',
+			},
+			{
 				displayName: 'Requires Approval',
 				name: 'requiresApproval',
 				type: 'boolean',

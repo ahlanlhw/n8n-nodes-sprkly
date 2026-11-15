@@ -81,6 +81,18 @@ const sameTime = (a: unknown, b: unknown) => {
 	return Number.isFinite(diff) && diff <= 60_000;
 };
 
+/**
+ * With 'Require External ID' on: why this External ID cannot be used, or '' when it can. An ID
+ * that ends with a separator is a template prefix with nothing after it, like sheet-.
+ */
+function externalIdProblem(externalId: string): string {
+	if (!externalId) return 'This row has no ID. Give each row its own ID.';
+	if (/[-_:]$/.test(externalId)) {
+		return "This row's ID looks empty (it ends with a separator). Give each row its own ID.";
+	}
+	return '';
+}
+
 function setMedia(body: IDataObject, value: unknown) {
 	const ids = toList(value);
 	if (ids.length === 1) body.mediaId = ids[0];
@@ -211,6 +223,10 @@ export class Sprkly implements INodeType {
 			}
 
 			const extra = this.getNodeParameter('additionalFields', i, {}) as IDataObject;
+			if (extra.requireExternalId) {
+				const idProblem = externalIdProblem(String(extra.externalId ?? '').trim());
+				if (idProblem) throw problem(idProblem);
+			}
 			const mediaUrls = toUrlList(extra.mediaUrls);
 			if (resultRow) {
 				const bad = mediaUrls.find((url) => !/^https?:\/\//i.test(url));
