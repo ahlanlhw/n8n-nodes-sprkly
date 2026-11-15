@@ -237,6 +237,7 @@ for (const [existingStatus, status, link, error] of [
 					{
 						id: 'post-999',
 						status: existingStatus,
+						caption: 'Example caption',
 						scheduledTime: '2099-03-01T01:00:00.000Z',
 						permalink: link || null,
 						failedReason: error || null,
@@ -261,6 +262,68 @@ for (const [existingStatus, status, link, error] of [
 				link,
 				error,
 			},
+		);
+	});
+}
+
+// A 409 for External ID sheet-1, whose existing post-999 has these fields.
+const duplicateRoutes = (existing) => ({
+	'POST /api/v1/posts': () => [
+		409,
+		{
+			error: 'Duplicate externalId',
+			code: 'duplicate_external_id',
+			existingPostId: 'post-999',
+			existingStatus: 'scheduled',
+		},
+	],
+	'GET /api/v1/posts/post-999': () => [
+		200,
+		{
+			id: 'post-999',
+			status: 'scheduled',
+			caption: 'Example caption',
+			scheduledTime: '2099-03-01T01:00:00.000Z',
+			deleted: false,
+			...existing,
+		},
+	],
+});
+const OTHER_ROW =
+	'Another row or an older version of this row already used this ID. sprkly kept the first post. Give each row its own ID, or edit that post in sprkly.';
+
+test('result row 409: same caption (spaces and line endings aside) and time within 60s is ok', async () => {
+	const { out } = await runCreate({
+		items: [sheetRow(1, { Caption: ' Line one\r\nLine two ' })],
+		params: rowParams(),
+		routes: duplicateRoutes({
+			caption: 'Line one\nLine two',
+			scheduledTime: '2099-03-01T01:00:59.000Z',
+		}),
+	});
+	assert.equal(out[0].ok, true);
+	assert.equal(out[0].status, 'Scheduled');
+	assert.equal(out[0].postId, 'post-999');
+});
+
+for (const [what, existing, error] of [
+	['another caption', { caption: 'Row one caption' }, OTHER_ROW],
+	['a time 61s away', { scheduledTime: '2099-03-01T01:01:01.000Z' }, OTHER_ROW],
+	[
+		'a deleted post',
+		{ deleted: true },
+		'This ID was used by a post that was deleted. Give the row a new ID.',
+	],
+]) {
+	test(`result row 409, existing post has ${what}: Error with the existing id`, async () => {
+		const { out } = await runCreate({
+			items: [sheetRow(1)],
+			params: rowParams(),
+			routes: duplicateRoutes(existing),
+		});
+		assert.deepEqual(
+			{ ok: out[0].ok, status: out[0].status, postId: out[0].postId, error: out[0].error },
+			{ ok: false, status: 'Error', postId: 'post-999', error },
 		);
 	});
 }

@@ -71,6 +71,16 @@ type ResultRow = {
 
 const textOf = (value: unknown) => (value === undefined || value === null ? '' : String(value));
 
+/** Captions compare without the spaces around them and with one kind of line ending. */
+const sameCaption = (a: unknown, b: unknown) =>
+	textOf(a).replace(/\r\n?/g, '\n').trim() === textOf(b).replace(/\r\n?/g, '\n').trim();
+
+/** Two times within 60 seconds of each other. A missing or unreadable time is never the same. */
+const sameTime = (a: unknown, b: unknown) => {
+	const diff = Math.abs(Date.parse(textOf(a)) - Date.parse(textOf(b)));
+	return Number.isFinite(diff) && diff <= 60_000;
+};
+
 function setMedia(body: IDataObject, value: unknown) {
 	const ids = toList(value);
 	if (ids.length === 1) body.mediaId = ids[0];
@@ -273,11 +283,12 @@ export class Sprkly implements INodeType {
 				error instanceof NodeApiError && error.httpCode === '401';
 
 			let response: RawResponse;
+			let body: IDataObject;
 			try {
 				// Inside the try: a broken expression in a field is a problem with this row only.
 				const extra = this.getNodeParameter('additionalFields', i, {}) as IDataObject;
 				externalId = String(extra.externalId ?? '').trim();
-				const body = await createBody(i, true);
+				body = await createBody(i, true);
 				response = await sprklyApiRawRequest.call(this, 'POST', '/api/v1/posts', {
 					body,
 					itemIndex: i,
@@ -304,12 +315,15 @@ export class Sprkly implements INodeType {
 				throw sprklyApiError(this.getNode(), 401, answer, response.headers, i);
 			}
 			if (response.statusCode === 409 && answer.code === 'duplicate_external_id') {
-				// A re-run of the same item: nothing new was posted. Report the first post.
+				// Nothing new was posted. Only a true re-run of this row (same caption, same time)
+				// reports the first post as its own. Another row with the same ID is an error.
 				const existingId = textOf(answer.existingPostId);
 				const existing = textOf(answer.existingStatus);
 				const status =
 					existing === 'posted' ? 'Published' : existing === 'failed' ? 'Failed' : 'Scheduled';
-				let post: IDataObject = {};
+				const notOk = (error: string) =>
+					row({ postId: existingId, postIds: existingId ? [existingId] : [], error });
+				let post: IDataObject;
 				try {
 					post = await sprklyApiRequest.call(
 						this,
@@ -317,8 +331,28 @@ export class Sprkly implements INodeType {
 						`/api/v1/posts/${encodeURIComponent(existingId)}`,
 						{ itemIndex: i },
 					);
-				} catch {
-					// The row still gets the post ID without its time.
+				} catch (error) {
+					if (isAuthFailure(error)) {
+						throw new NodeApiError(this.getNode(), error as unknown as JsonObject, {
+							itemIndex: i,
+						});
+					}
+					return notOk(
+						`This ID is already used by post ${existingId}, and sprkly could not read that post: ${
+							(error as Error).message
+						}`,
+					);
+				}
+				// A row sent without a time (Post Now) has no time to compare.
+				const timeDiffers =
+					body.scheduledTime !== undefined && !sameTime(body.scheduledTime, post.scheduledTime);
+				if (!sameCaption(body.caption, post.caption) || timeDiffers) {
+					return notOk(
+						'Another row or an older version of this row already used this ID. sprkly kept the first post. Give each row its own ID, or edit that post in sprkly.',
+					);
+				}
+				if (post.deleted === true) {
+					return notOk('This ID was used by a post that was deleted. Give the row a new ID.');
 				}
 				return row({
 					ok: true,
