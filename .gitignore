@@ -12,3 +12,4 @@ node_modules
 .mcp.json
 .npmrc
 *.pem
+templates/template_examples_for_improvising/
