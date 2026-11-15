@@ -1,0 +1,530 @@
+{
+	"name": "Airtable content table to sprkly, with approval",
+	"nodes": [
+		{
+			"id": "bd435f0f-0804-49f9-be9f-773db287dcfb",
+			"name": "Overview",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-1000,
+				-80
+			],
+			"parameters": {
+				"content": "## Airtable to sprkly, with your OK first\n\n### How it works\n- Every 15 minutes it finds the records with Status **Ready**.\n- A file in the Media field goes to sprkly first. Airtable file links stop working after a few hours, so sprkly keeps its own copy.\n- Each record becomes a post in sprkly that waits for your OK. The Approval Note goes with it.\n- External ID `airtable-<record id>` means a re-run never posts twice.\n- The record gets back its Status, sprkly Post ID, time and any error.\n- When a post goes out, the record gets **Published** and the link. When it fails, **Failed** and the reason.\n\n### Setup\n- Needs the n8n-nodes-sprkly community node (Settings, Community Nodes). More: https://github.com/ahlanlhw/n8n-nodes-sprkly\n- Add your sprkly API key to the 4 sprkly nodes. API docs: https://sprkly.app/docs/api\n- Add your Airtable login to the 3 Airtable nodes, and pick your base and table in each.\n- Fields: Caption, Publish Time, Accounts, Media, Media URL, Approval Note, Status, sprkly Post ID, Scheduled For, Link, Error.\n- Accounts looks like `instagram:clienthandle, telegram:Client channel`. A lookup from a Clients table works too.\n- Give Publish Time a time, not only a date.\n\n### Customize\n- Change how often it runs in **Every 15 minutes**.\n- To skip the OK step, turn off Requires Approval in **Schedule post for approval**.",
+				"height": 820,
+				"width": 520,
+				"color": 1
+			}
+		},
+		{
+			"id": "0cb91997-e664-4992-9dbf-968fe3595e02",
+			"name": "Note: schedule records",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-440,
+				80
+			],
+			"parameters": {
+				"content": "## Schedule Ready records\nOnly the first file in Media is used. A bad file link writes Error to the record and skips the post. Every other record still goes.",
+				"height": 500,
+				"width": 1460,
+				"color": 7
+			}
+		},
+		{
+			"id": "186a0a5a-932d-4f33-bfd1-5e1f4e09ef00",
+			"name": "Note: track posts",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-440,
+				680
+			],
+			"parameters": {
+				"content": "## Track what happened\nWhen a post goes out or fails, the record is found by its id. Only posts with an External ID that starts with airtable- reach this table.",
+				"height": 440,
+				"width": 760,
+				"color": 7
+			}
+		},
+		{
+			"id": "ac6cb45a-2cd8-42c2-81da-d293d50d24b2",
+			"name": "Every 15 minutes",
+			"type": "n8n-nodes-base.scheduleTrigger",
+			"typeVersion": 1.3,
+			"position": [
+				-400,
+				320
+			],
+			"parameters": {
+				"rule": {
+					"interval": [
+						{
+							"field": "minutes",
+							"minutesInterval": 15
+						}
+					]
+				}
+			}
+		},
+		{
+			"id": "5b64eed9-5707-4187-8fbe-198ab412950c",
+			"name": "Get Ready records",
+			"type": "n8n-nodes-base.airtable",
+			"typeVersion": 2.1,
+			"position": [
+				-160,
+				320
+			],
+			"parameters": {
+				"resource": "record",
+				"operation": "search",
+				"base": {
+					"__rl": true,
+					"value": "",
+					"mode": "list"
+				},
+				"table": {
+					"__rl": true,
+					"value": "",
+					"mode": "list"
+				},
+				"filterByFormula": "{Status} = 'Ready'",
+				"returnAll": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "20967f50-11a5-42d6-a1fe-411223cc6fe7",
+			"name": "Has a file?",
+			"type": "n8n-nodes-base.if",
+			"typeVersion": 2.2,
+			"position": [
+				80,
+				320
+			],
+			"parameters": {
+				"conditions": {
+					"options": {
+						"caseSensitive": true,
+						"leftValue": "",
+						"typeValidation": "loose",
+						"version": 2
+					},
+					"conditions": [
+						{
+							"id": "has-file",
+							"leftValue": "={{ ($json.Media || []).length }}",
+							"rightValue": 0,
+							"operator": {
+								"type": "number",
+								"operation": "gt"
+							}
+						}
+					],
+					"combinator": "and"
+				},
+				"looseTypeValidation": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "f5c33512-5b10-44c1-ba2d-b88f749aeb47",
+			"name": "Keep the file in sprkly",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				320,
+				200
+			],
+			"parameters": {
+				"resource": "media",
+				"operation": "addFromUrl",
+				"url": "={{ $json.Media[0].url }}"
+			},
+			"onError": "continueErrorOutput"
+		},
+		{
+			"id": "59e06a95-fb2e-4437-a5c3-280d06a01163",
+			"name": "Schedule post for approval",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				560,
+				320
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "create",
+				"accountMode": "name",
+				"accountNames": "={{ [].concat($('Get Ready records').item.json.Accounts || []).join(', ') }}",
+				"caption": "={{ $('Get Ready records').item.json.Caption }}",
+				"scheduledTime": "={{ $('Get Ready records').item.json['Publish Time'] }}",
+				"mediaIds": "={{ $json.mediaId || '' }}",
+				"output": "resultRow",
+				"additionalFields": {
+					"externalId": "={{ 'airtable-' + $('Get Ready records').item.json.id }}",
+					"mediaUrls": "={{ $('Get Ready records').item.json['Media URL'] || '' }}",
+					"requireExternalId": true,
+					"requiresApproval": true,
+					"approvalNote": "={{ $('Get Ready records').item.json['Approval Note'] || '' }}"
+				}
+			}
+		},
+		{
+			"id": "6a01fae2-f5fd-41c3-93cc-d4cffaeda55a",
+			"name": "Write result to record",
+			"type": "n8n-nodes-base.airtable",
+			"typeVersion": 2.1,
+			"position": [
+				800,
+				320
+			],
+			"parameters": {
+				"resource": "record",
+				"operation": "update",
+				"base": {
+					"__rl": true,
+					"value": "",
+					"mode": "list"
+				},
+				"table": {
+					"__rl": true,
+					"value": "",
+					"mode": "list"
+				},
+				"columns": {
+					"mappingMode": "defineBelow",
+					"value": {
+						"id": "={{ $('Get Ready records').item.json.id }}",
+						"Status": "={{ $json.status || 'Error' }}",
+						"sprkly Post ID": "={{ $json.postId || '' }}",
+						"Scheduled For": "={{ $json.scheduledFor || '' }}",
+						"Error": "={{ $json.error || '' }}"
+					},
+					"matchingColumns": [
+						"id"
+					],
+					"schema": [
+						{
+							"id": "id",
+							"displayName": "id",
+							"required": false,
+							"defaultMatch": true,
+							"display": true,
+							"type": "string",
+							"readOnly": true,
+							"removed": false
+						},
+						{
+							"id": "Status",
+							"displayName": "Status",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "sprkly Post ID",
+							"displayName": "sprkly Post ID",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Scheduled For",
+							"displayName": "Scheduled For",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Link",
+							"displayName": "Link",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Error",
+							"displayName": "Error",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						}
+					],
+					"attemptToConvertTypes": false,
+					"convertFieldsToString": false
+				},
+				"options": {
+					"typecast": true
+				}
+			}
+		},
+		{
+			"id": "7146fdf2-dc30-452a-8302-a7425066213c",
+			"name": "When a post goes out",
+			"type": "n8n-nodes-sprkly.sprklyTrigger",
+			"typeVersion": 1,
+			"position": [
+				-400,
+				800
+			],
+			"parameters": {
+				"pollTimes": {
+					"item": [
+						{
+							"mode": "everyX",
+							"value": 5,
+							"unit": "minutes"
+						}
+					]
+				},
+				"event": "postPublished",
+				"externalIdPrefix": "airtable-",
+				"stripPrefix": true
+			}
+		},
+		{
+			"id": "94654bf8-1e0e-4817-bb17-a4518ea22477",
+			"name": "When a post fails",
+			"type": "n8n-nodes-sprkly.sprklyTrigger",
+			"typeVersion": 1,
+			"position": [
+				-400,
+				980
+			],
+			"parameters": {
+				"pollTimes": {
+					"item": [
+						{
+							"mode": "everyX",
+							"value": 5,
+							"unit": "minutes"
+						}
+					]
+				},
+				"event": "postFailed",
+				"externalIdPrefix": "airtable-",
+				"stripPrefix": true
+			}
+		},
+		{
+			"id": "01dc136e-7e5d-4535-9f30-24ce08d61769",
+			"name": "Write post status to record",
+			"type": "n8n-nodes-base.airtable",
+			"typeVersion": 2.1,
+			"position": [
+				-120,
+				880
+			],
+			"parameters": {
+				"resource": "record",
+				"operation": "update",
+				"base": {
+					"__rl": true,
+					"value": "",
+					"mode": "list"
+				},
+				"table": {
+					"__rl": true,
+					"value": "",
+					"mode": "list"
+				},
+				"columns": {
+					"mappingMode": "defineBelow",
+					"value": {
+						"id": "={{ $json.sourceId }}",
+						"Status": "={{ $json.statusLabel }}",
+						"Link": "={{ $json.link }}",
+						"Error": "={{ $json.error }}"
+					},
+					"matchingColumns": [
+						"id"
+					],
+					"schema": [
+						{
+							"id": "id",
+							"displayName": "id",
+							"required": false,
+							"defaultMatch": true,
+							"display": true,
+							"type": "string",
+							"readOnly": true,
+							"removed": false
+						},
+						{
+							"id": "Status",
+							"displayName": "Status",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "sprkly Post ID",
+							"displayName": "sprkly Post ID",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Scheduled For",
+							"displayName": "Scheduled For",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Link",
+							"displayName": "Link",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Error",
+							"displayName": "Error",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						}
+					],
+					"attemptToConvertTypes": false,
+					"convertFieldsToString": false
+				},
+				"options": {
+					"typecast": true
+				}
+			}
+		}
+	],
+	"connections": {
+		"Every 15 minutes": {
+			"main": [
+				[
+					{
+						"node": "Get Ready records",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Get Ready records": {
+			"main": [
+				[
+					{
+						"node": "Has a file?",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Has a file?": {
+			"main": [
+				[
+					{
+						"node": "Keep the file in sprkly",
+						"type": "main",
+						"index": 0
+					}
+				],
+				[
+					{
+						"node": "Schedule post for approval",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Keep the file in sprkly": {
+			"main": [
+				[
+					{
+						"node": "Schedule post for approval",
+						"type": "main",
+						"index": 0
+					}
+				],
+				[
+					{
+						"node": "Write result to record",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Schedule post for approval": {
+			"main": [
+				[
+					{
+						"node": "Write result to record",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"When a post goes out": {
+			"main": [
+				[
+					{
+						"node": "Write post status to record",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"When a post fails": {
+			"main": [
+				[
+					{
+						"node": "Write post status to record",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		}
+	},
+	"pinData": {},
+	"active": false,
+	"settings": {
+		"executionOrder": "v1"
+	}
+}

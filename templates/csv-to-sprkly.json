@@ -1,0 +1,329 @@
+{
+	"name": "CSV or Excel upload to sprkly, with a results file",
+	"nodes": [
+		{
+			"id": "c6afd972-ac7f-458d-9723-dd241e1739ac",
+			"name": "Overview",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-1000,
+				-80
+			],
+			"parameters": {
+				"content": "## Upload a file, schedule a batch in sprkly\n\n### How it works\n- You open the form and upload one CSV or Excel file.\n- Each row becomes a scheduled post in sprkly. External ID `csv-<Row ID>` means a file sent twice never posts twice.\n- A bad row gets Status **Error** and a plain reason. The other rows still go.\n- The form hands back a results file with Row ID, Status, Post ID, Scheduled For and Error. It also says how many were scheduled and which rows had errors.\n\n### Setup\n- Needs the n8n-nodes-sprkly community node (Settings, Community Nodes). More: https://github.com/ahlanlhw/n8n-nodes-sprkly\n- Add your sprkly API key to **Schedule each row**. API docs: https://sprkly.app/docs/api\n- The form uses Basic Auth, so only you can post. Make a Basic Auth login in **Upload a file**.\n- Columns: Row ID, Caption, Schedule Time, Accounts, Media URL.\n- Schedule Time looks like `2030-01-15 09:00`. Keep it as text in Excel.\n- Accounts looks like `instagram:myhandle, telegram:My channel`.\n- Give every row its own Row ID. A row without one is never posted.\n- Set your time zone in Workflow settings. Times in the file use it.\n\n### Customize\n- Add a Title column for TikTok and YouTube, and map it in **Schedule each row**, under Additional Fields.",
+				"height": 760,
+				"width": 520,
+				"color": 1
+			}
+		},
+		{
+			"id": "70680150-41fb-4ea4-968e-ede0d259590b",
+			"name": "Note: schedule the file",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-440,
+				80
+			],
+			"parameters": {
+				"content": "## Read the file and schedule it\nCSV and Excel files are read the same way. The sprkly node gives back one result row per file row. An empty Schedule Time is refused, so nothing posts by accident.",
+				"height": 500,
+				"width": 1720,
+				"color": 7
+			}
+		},
+		{
+			"id": "ca689c16-1429-4149-8d80-2c7cafedb4b6",
+			"name": "Upload a file",
+			"type": "n8n-nodes-base.formTrigger",
+			"typeVersion": 2.5,
+			"position": [
+				-400,
+				320
+			],
+			"parameters": {
+				"authentication": "basicAuth",
+				"formTitle": "Schedule posts from a file",
+				"formDescription": "Upload one CSV or Excel file. You get a results file back.",
+				"formFields": {
+					"values": [
+						{
+							"fieldLabel": "File",
+							"fieldName": "data",
+							"fieldType": "file",
+							"multipleFiles": false,
+							"acceptFileTypes": ".csv,.xlsx",
+							"requiredField": true
+						}
+					]
+				},
+				"options": {
+					"buttonLabel": "Schedule"
+				}
+			}
+		},
+		{
+			"id": "ef7114e6-7dad-4b32-bf02-edeed96f9172",
+			"name": "Is it a CSV file?",
+			"type": "n8n-nodes-base.if",
+			"typeVersion": 2.2,
+			"position": [
+				-160,
+				320
+			],
+			"parameters": {
+				"conditions": {
+					"options": {
+						"caseSensitive": true,
+						"leftValue": "",
+						"typeValidation": "loose",
+						"version": 2
+					},
+					"conditions": [
+						{
+							"id": "is-csv",
+							"leftValue": "={{ ($binary.data.fileName || '').toLowerCase().endsWith('.csv') }}",
+							"rightValue": "",
+							"operator": {
+								"type": "boolean",
+								"operation": "true",
+								"singleValue": true
+							}
+						}
+					],
+					"combinator": "and"
+				},
+				"looseTypeValidation": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "ca06649b-5f68-4765-a91a-2a0b2ae71f5f",
+			"name": "Read CSV rows",
+			"type": "n8n-nodes-base.extractFromFile",
+			"typeVersion": 1.1,
+			"position": [
+				80,
+				200
+			],
+			"parameters": {
+				"operation": "csv",
+				"binaryPropertyName": "data",
+				"options": {}
+			}
+		},
+		{
+			"id": "f55260eb-c3b7-4c6c-9495-20d0e66054b1",
+			"name": "Read Excel rows",
+			"type": "n8n-nodes-base.extractFromFile",
+			"typeVersion": 1.1,
+			"position": [
+				80,
+				440
+			],
+			"parameters": {
+				"operation": "xlsx",
+				"binaryPropertyName": "data",
+				"options": {}
+			}
+		},
+		{
+			"id": "63a66de6-78c0-4140-bf5a-786380e05bfc",
+			"name": "Schedule each row",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				320,
+				320
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "create",
+				"accountMode": "name",
+				"accountNames": "={{ $json.Accounts }}",
+				"caption": "={{ $json.Caption }}",
+				"scheduledTime": "={{ $json['Schedule Time'] }}",
+				"output": "resultRow",
+				"additionalFields": {
+					"externalId": "={{ $json['Row ID'] ? 'csv-' + String($json['Row ID']).trim() : '' }}",
+					"mediaUrls": "={{ $json['Media URL'] || '' }}",
+					"requireExternalId": true
+				}
+			}
+		},
+		{
+			"id": "38c2acb6-c91c-4f37-a947-5b6ce03b377a",
+			"name": "Keep result columns",
+			"type": "n8n-nodes-base.set",
+			"typeVersion": 3.4,
+			"position": [
+				560,
+				320
+			],
+			"parameters": {
+				"assignments": {
+					"assignments": [
+						{
+							"id": "row-id",
+							"name": "Row ID",
+							"value": "={{ $json['Row ID'] }}",
+							"type": "string"
+						},
+						{
+							"id": "status",
+							"name": "Status",
+							"value": "={{ $json.status }}",
+							"type": "string"
+						},
+						{
+							"id": "post-id",
+							"name": "Post ID",
+							"value": "={{ $json.postId }}",
+							"type": "string"
+						},
+						{
+							"id": "scheduled-for",
+							"name": "Scheduled For",
+							"value": "={{ $json.scheduledFor }}",
+							"type": "string"
+						},
+						{
+							"id": "error",
+							"name": "Error",
+							"value": "={{ $json.error }}",
+							"type": "string"
+						}
+					]
+				},
+				"options": {}
+			}
+		},
+		{
+			"id": "1771a38d-f9be-4a60-be82-ca3e787f7f2c",
+			"name": "Make results file",
+			"type": "n8n-nodes-base.convertToFile",
+			"typeVersion": 1.1,
+			"position": [
+				800,
+				320
+			],
+			"parameters": {
+				"operation": "csv",
+				"binaryPropertyName": "results",
+				"options": {
+					"fileName": "sprkly-results.csv"
+				}
+			}
+		},
+		{
+			"id": "499dfacf-7543-4722-884e-d4b921411bbc",
+			"name": "Send the results file",
+			"type": "n8n-nodes-base.form",
+			"typeVersion": 2.5,
+			"position": [
+				1040,
+				320
+			],
+			"parameters": {
+				"operation": "completion",
+				"respondWith": "returnBinary",
+				"inputDataFieldName": "results",
+				"completionTitle": "Done",
+				"completionMessage": "={{ $('Schedule each row').all().filter(i => i.json.ok).length }} scheduled, {{ $('Schedule each row').all().filter(i => !i.json.ok).length }} errors. Rows with errors: {{ $('Schedule each row').all().filter(i => !i.json.ok).map(i => i.json['Row ID'] || 'no Row ID').join(', ') || 'none' }}.",
+				"options": {}
+			}
+		}
+	],
+	"connections": {
+		"Upload a file": {
+			"main": [
+				[
+					{
+						"node": "Is it a CSV file?",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Is it a CSV file?": {
+			"main": [
+				[
+					{
+						"node": "Read CSV rows",
+						"type": "main",
+						"index": 0
+					}
+				],
+				[
+					{
+						"node": "Read Excel rows",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Read CSV rows": {
+			"main": [
+				[
+					{
+						"node": "Schedule each row",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Read Excel rows": {
+			"main": [
+				[
+					{
+						"node": "Schedule each row",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Schedule each row": {
+			"main": [
+				[
+					{
+						"node": "Keep result columns",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Keep result columns": {
+			"main": [
+				[
+					{
+						"node": "Make results file",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Make results file": {
+			"main": [
+				[
+					{
+						"node": "Send the results file",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		}
+	},
+	"pinData": {},
+	"active": false,
+	"settings": {
+		"executionOrder": "v1"
+	}
+}
