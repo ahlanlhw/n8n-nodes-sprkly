@@ -82,6 +82,7 @@ n8n checks the key when you save the credential.
   - **Media URLs**: public links, if you did not upload first. Commas, spaces or new lines between them.
   - **Post Type**: what the post is for, for your own reports.
   - **External ID**: your own ID for the post. See the tip below.
+  - **Require External ID**: off by default. When on, an item with no External ID, or one that ends with `-`, `_` or `:` like `sheet-`, is refused.
   - **Requires Approval**: hold the post until the owner approves it by email.
   - **Approval Note**: a note in that email.
   - **First Comment**: Instagram only. Posted under the post once it goes out.
@@ -104,7 +105,7 @@ Notes:
 - Each post fires once per event.
 - In a test run it shows the newest matching post, so you can map its fields.
 - **External ID Starts With**: only posts whose External ID starts with this, like `sheet-`.
-- **Remove It From Source ID**: `sheet-12` gives `12`.
+- **Remove It From Source ID**: `sheet-12` gives `12`. A post left with an empty `sourceId` is skipped.
 
 Each post also comes with:
 
@@ -121,9 +122,10 @@ Set **Output** to **Result Row** on Post, Create. Then:
 - The result row has `ok`, `status`, `postId`, `postIds`, `scheduledFor`, `link`, `error` and `externalId`.
 - `status` is `Scheduled`, `Published`, `Failed` or `Error`. `error` says why in plain words.
 - The row's own fields stay, so a Google Sheets update can match on `row_number`.
-- A second run with the same External ID posts nothing. It gives back the first post.
+- A second run with the same External ID posts nothing. It gives back the first post when the caption and time match. If they differ, the row gets `Error` and the first post's ID.
+- Turn on **Require External ID**, so a row with an empty ID is refused, not posted.
 - Only a wrong API key stops the run. Your rows then stay as they were.
-- See the template in `templates/sheets-content-calendar`.
+- See the templates in `templates/`.
 
 ## Example flows
 
@@ -171,7 +173,7 @@ Add a **sprkly Trigger** on **Post Failed** in another workflow to get a message
 
 ## Version history
 
-- 0.2.0: Accounts By Name, Post Now, Result Row output on Post, Create. sourceId and an External ID filter on the trigger.
+- 0.2.0: Accounts By Name, Post Now, Result Row output and Require External ID on Post, Create. sourceId and an External ID filter on the trigger.
 - 0.1.0: first release. Account, Media and Post operations, and the sprkly Trigger.
 
 ## License
