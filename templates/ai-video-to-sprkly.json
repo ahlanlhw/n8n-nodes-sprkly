@@ -1,0 +1,1119 @@
+{
+	"name": "AI video from a prompt to Reels, TikTok and Shorts, held for approval",
+	"nodes": [
+		{
+			"id": "3deb4c26-e618-419e-aa3b-c6eb0db6fcf2",
+			"name": "Overview",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-1000,
+				-80
+			],
+			"parameters": {
+				"content": "## Turn a prompt into a short video, checked by you\n\n### How it works\n- Every 30 minutes it takes one row with Status **Ready**.\n- fal.ai makes a 9:16 video from the Prompt with Veo 3. It checks every minute, and stops after 15 tries.\n- sprkly pulls the finished video once, then schedules it to your Reels, TikTok and Shorts accounts 2 hours from now.\n- The post has **Requires Approval** on. sprkly emails you an Approve link. Watch the video, then approve it. Nothing goes out before that.\n- The AI lives in fal.ai. sprkly has no AI. It only publishes.\n- The row gets the video link, the sprkly Post ID and the job ID. When the post goes out, the row gets **Published** and the link.\n\n### Setup\n- Needs the n8n-nodes-sprkly community node (Settings, Community Nodes).\n- Logins: a sprkly API key, a Google login, a fal.ai key.\n- fal.ai bills you for every clip it makes. One row per run keeps the cost in check.\n- Make a Header Auth login: name `Authorization`, value: the word `Key`, a space, then your fal.ai key. Add it to the 3 fal.ai nodes.\n- Sheet columns: Status, Prompt, Caption, Title, Accounts, Job ID, Video URL, sprkly Post ID, Link, Error.\n- Accounts look like `instagram:myhandle, tiktok:myhandle, youtube:My channel`. Title is for TikTok and YouTube.\n- sprkly API docs: https://sprkly.app/docs/api\n- Node: https://github.com/ahlanlhw/n8n-nodes-sprkly\n\n### Customize\n- Change the model or the shape in **Start the video**.",
+				"height": 900,
+				"width": 520,
+				"color": 1
+			}
+		},
+		{
+			"id": "b63974e5-e204-4a5e-8458-47937622a381",
+			"name": "Note: make the video",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-440,
+				80
+			],
+			"parameters": {
+				"content": "## Make the video\nThe row is marked Making video first, so the next run skips it. The loop checks the job once a minute. After 15 checks it stops and writes an error, so a stuck job never runs forever.",
+				"height": 640,
+				"width": 1460,
+				"color": 7
+			}
+		},
+		{
+			"id": "5624a36b-4b8b-4977-b6a1-97fe8043b53d",
+			"name": "Note: publish",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				1060,
+				80
+			],
+			"parameters": {
+				"content": "## Hold it for approval\nsprkly pulls the file once from fal.ai and makes one post for every account. External ID aivideo plus the job ID means a re-run never posts twice.",
+				"height": 640,
+				"width": 1220,
+				"color": 7
+			}
+		},
+		{
+			"id": "b38fc0be-78f5-4950-bdaf-e992ad9bbbad",
+			"name": "Note: track posts",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-440,
+				800
+			],
+			"parameters": {
+				"content": "## Track what went out\nWhen the video goes out or fails, the row is found by its Job ID and gets the status and the link.",
+				"height": 440,
+				"width": 1000,
+				"color": 7
+			}
+		},
+		{
+			"id": "399a65f4-fc48-440a-97aa-c3d384660720",
+			"name": "Every 30 minutes",
+			"type": "n8n-nodes-base.scheduleTrigger",
+			"typeVersion": 1.3,
+			"position": [
+				-400,
+				320
+			],
+			"parameters": {
+				"rule": {
+					"interval": [
+						{
+							"field": "minutes",
+							"minutesInterval": 30
+						}
+					]
+				}
+			}
+		},
+		{
+			"id": "65c1cf86-410a-4a0f-8a92-e83b45388f0f",
+			"name": "Get ready rows",
+			"type": "n8n-nodes-base.googleSheets",
+			"typeVersion": 4.7,
+			"position": [
+				-180,
+				320
+			],
+			"parameters": {
+				"operation": "read",
+				"documentId": {
+					"__rl": true,
+					"value": "",
+					"mode": "url"
+				},
+				"sheetName": {
+					"__rl": true,
+					"value": "",
+					"mode": "list"
+				},
+				"filtersUI": {
+					"values": [
+						{
+							"lookupColumn": "Status",
+							"lookupValue": "Ready"
+						}
+					]
+				},
+				"options": {}
+			}
+		},
+		{
+			"id": "e59a4085-0da3-4290-a096-1a0cc454a17b",
+			"name": "One video per run",
+			"type": "n8n-nodes-base.limit",
+			"typeVersion": 1,
+			"position": [
+				40,
+				320
+			],
+			"parameters": {
+				"maxItems": 1
+			}
+		},
+		{
+			"id": "3cb37861-d73a-49f7-9abb-8b591d7beeeb",
+			"name": "Mark row as making",
+			"type": "n8n-nodes-base.googleSheets",
+			"typeVersion": 4.7,
+			"position": [
+				260,
+				320
+			],
+			"parameters": {
+				"operation": "update",
+				"documentId": {
+					"__rl": true,
+					"value": "",
+					"mode": "url"
+				},
+				"sheetName": {
+					"__rl": true,
+					"value": "",
+					"mode": "list"
+				},
+				"columns": {
+					"mappingMode": "defineBelow",
+					"value": {
+						"row_number": "={{ $json.row_number }}",
+						"Status": "Making video"
+					},
+					"matchingColumns": [
+						"row_number"
+					],
+					"schema": [
+						{
+							"id": "row_number",
+							"displayName": "row_number",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "number",
+							"canBeUsedToMatch": true,
+							"readOnly": true,
+							"removed": false
+						},
+						{
+							"id": "Status",
+							"displayName": "Status",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Prompt",
+							"displayName": "Prompt",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Caption",
+							"displayName": "Caption",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Title",
+							"displayName": "Title",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Accounts",
+							"displayName": "Accounts",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Job ID",
+							"displayName": "Job ID",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Video URL",
+							"displayName": "Video URL",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "sprkly Post ID",
+							"displayName": "sprkly Post ID",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Link",
+							"displayName": "Link",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Error",
+							"displayName": "Error",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						}
+					]
+				},
+				"options": {}
+			}
+		},
+		{
+			"id": "64a6a76d-3e30-425c-b024-542581f29696",
+			"name": "Start the video",
+			"type": "n8n-nodes-base.httpRequest",
+			"typeVersion": 4.2,
+			"position": [
+				480,
+				320
+			],
+			"parameters": {
+				"authentication": "genericCredentialType",
+				"genericAuthType": "httpHeaderAuth",
+				"options": {},
+				"method": "POST",
+				"url": "https://queue.fal.run/fal-ai/veo3",
+				"sendBody": true,
+				"specifyBody": "json",
+				"jsonBody": "={{ { prompt: $('One video per run').item.json['Prompt'], aspect_ratio: '9:16' } }}"
+			}
+		},
+		{
+			"id": "54adef7e-dae8-4bb9-9022-1eeae319d9e3",
+			"name": "Wait 1 minute",
+			"type": "n8n-nodes-base.wait",
+			"typeVersion": 1.1,
+			"position": [
+				700,
+				320
+			],
+			"parameters": {
+				"amount": 1,
+				"unit": "minutes"
+			}
+		},
+		{
+			"id": "9c0cf6cc-6150-416a-a37e-b9ca64f67ff8",
+			"name": "Check the job",
+			"type": "n8n-nodes-base.httpRequest",
+			"typeVersion": 4.2,
+			"position": [
+				920,
+				320
+			],
+			"parameters": {
+				"authentication": "genericCredentialType",
+				"genericAuthType": "httpHeaderAuth",
+				"options": {},
+				"url": "={{ $('Start the video').item.json.status_url }}"
+			}
+		},
+		{
+			"id": "4791c56f-c9e7-4874-ba92-76c736a064f4",
+			"name": "Video ready?",
+			"type": "n8n-nodes-base.if",
+			"typeVersion": 2.2,
+			"position": [
+				1140,
+				320
+			],
+			"parameters": {
+				"conditions": {
+					"options": {
+						"caseSensitive": true,
+						"leftValue": "",
+						"typeValidation": "loose",
+						"version": 2
+					},
+					"conditions": [
+						{
+							"id": "a08128a8-d523-4785-891f-a67069446bf7",
+							"leftValue": "={{ $json.status }}",
+							"rightValue": "COMPLETED",
+							"operator": {
+								"type": "string",
+								"operation": "equals"
+							}
+						}
+					],
+					"combinator": "and"
+				},
+				"looseTypeValidation": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "3c888128-c581-4198-b04e-cf7f8e0eaa26",
+			"name": "Try again?",
+			"type": "n8n-nodes-base.if",
+			"typeVersion": 2.2,
+			"position": [
+				1140,
+				560
+			],
+			"parameters": {
+				"conditions": {
+					"options": {
+						"caseSensitive": true,
+						"leftValue": "",
+						"typeValidation": "loose",
+						"version": 2
+					},
+					"conditions": [
+						{
+							"id": "4ecf3ccd-9ffc-4b95-a93d-d63b0a8f1d93",
+							"leftValue": "={{ $runIndex }}",
+							"rightValue": 14,
+							"operator": {
+								"type": "number",
+								"operation": "lt"
+							}
+						}
+					],
+					"combinator": "and"
+				},
+				"looseTypeValidation": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "ba786959-856a-4c2e-96d0-1545f783b018",
+			"name": "Write timeout to row",
+			"type": "n8n-nodes-base.googleSheets",
+			"typeVersion": 4.7,
+			"position": [
+				1400,
+				560
+			],
+			"parameters": {
+				"operation": "update",
+				"documentId": {
+					"__rl": true,
+					"value": "",
+					"mode": "url"
+				},
+				"sheetName": {
+					"__rl": true,
+					"value": "",
+					"mode": "list"
+				},
+				"columns": {
+					"mappingMode": "defineBelow",
+					"value": {
+						"row_number": "={{ $('One video per run').item.json.row_number }}",
+						"Status": "Error",
+						"Job ID": "={{ $('Start the video').item.json.request_id }}",
+						"Error": "The video was not ready after 15 checks. Look up the Job ID in fal.ai. Setting Status to Ready again makes a new clip."
+					},
+					"matchingColumns": [
+						"row_number"
+					],
+					"schema": [
+						{
+							"id": "row_number",
+							"displayName": "row_number",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "number",
+							"canBeUsedToMatch": true,
+							"readOnly": true,
+							"removed": false
+						},
+						{
+							"id": "Status",
+							"displayName": "Status",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Prompt",
+							"displayName": "Prompt",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Caption",
+							"displayName": "Caption",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Title",
+							"displayName": "Title",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Accounts",
+							"displayName": "Accounts",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Job ID",
+							"displayName": "Job ID",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Video URL",
+							"displayName": "Video URL",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "sprkly Post ID",
+							"displayName": "sprkly Post ID",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Link",
+							"displayName": "Link",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Error",
+							"displayName": "Error",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						}
+					]
+				},
+				"options": {}
+			}
+		},
+		{
+			"id": "435385f7-31b0-48d3-a8da-e532c7c6496e",
+			"name": "Get the finished video",
+			"type": "n8n-nodes-base.httpRequest",
+			"typeVersion": 4.2,
+			"position": [
+				1400,
+				320
+			],
+			"parameters": {
+				"authentication": "genericCredentialType",
+				"genericAuthType": "httpHeaderAuth",
+				"options": {},
+				"url": "={{ $('Start the video').item.json.response_url }}"
+			}
+		},
+		{
+			"id": "05261364-e36b-43ee-8200-9a49a49167db",
+			"name": "Add video to sprkly",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				1620,
+				320
+			],
+			"parameters": {
+				"resource": "media",
+				"operation": "addFromUrl",
+				"url": "={{ $json.video.url }}"
+			}
+		},
+		{
+			"id": "ae8cf9d6-e376-40dc-90fe-792d49215bec",
+			"name": "Schedule video post",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				1840,
+				320
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "create",
+				"accountMode": "name",
+				"accountNames": "={{ $('One video per run').item.json['Accounts'] }}",
+				"caption": "={{ $('One video per run').item.json['Caption'] }}",
+				"scheduledTime": "={{ $now.plus({ hours: 2 }).toISO() }}",
+				"mediaIds": "={{ $json.mediaId }}",
+				"output": "resultRow",
+				"additionalFields": {
+					"externalId": "={{ $('Start the video').item.json.request_id ? 'aivideo-' + $('Start the video').item.json.request_id : '' }}",
+					"requireExternalId": true,
+					"requiresApproval": true,
+					"approvalNote": "Video made by fal.ai from your prompt. Watch it before you approve.",
+					"title": "={{ $('One video per run').item.json['Title'] }}",
+					"tiktokPrivacyLevel": "PUBLIC_TO_EVERYONE"
+				}
+			}
+		},
+		{
+			"id": "59105cc3-79d4-4502-a52e-79602172dafb",
+			"name": "Write result to row",
+			"type": "n8n-nodes-base.googleSheets",
+			"typeVersion": 4.7,
+			"position": [
+				2060,
+				320
+			],
+			"parameters": {
+				"operation": "update",
+				"documentId": {
+					"__rl": true,
+					"value": "",
+					"mode": "url"
+				},
+				"sheetName": {
+					"__rl": true,
+					"value": "",
+					"mode": "list"
+				},
+				"columns": {
+					"mappingMode": "defineBelow",
+					"value": {
+						"row_number": "={{ $('One video per run').item.json.row_number }}",
+						"Status": "={{ $json.ok ? 'Waiting for approval' : 'Error' }}",
+						"Job ID": "={{ $('Start the video').item.json.request_id }}",
+						"Video URL": "={{ $('Get the finished video').item.json.video.url }}",
+						"sprkly Post ID": "={{ $json.postId }}",
+						"Error": "={{ $json.error }}"
+					},
+					"matchingColumns": [
+						"row_number"
+					],
+					"schema": [
+						{
+							"id": "row_number",
+							"displayName": "row_number",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "number",
+							"canBeUsedToMatch": true,
+							"readOnly": true,
+							"removed": false
+						},
+						{
+							"id": "Status",
+							"displayName": "Status",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Prompt",
+							"displayName": "Prompt",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Caption",
+							"displayName": "Caption",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Title",
+							"displayName": "Title",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Accounts",
+							"displayName": "Accounts",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Job ID",
+							"displayName": "Job ID",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Video URL",
+							"displayName": "Video URL",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "sprkly Post ID",
+							"displayName": "sprkly Post ID",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Link",
+							"displayName": "Link",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Error",
+							"displayName": "Error",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						}
+					]
+				},
+				"options": {}
+			}
+		},
+		{
+			"id": "3fa71f9c-1fd9-4a92-bc38-7007df7a72e7",
+			"name": "When the video goes out",
+			"type": "n8n-nodes-sprkly.sprklyTrigger",
+			"typeVersion": 1,
+			"position": [
+				-400,
+				960
+			],
+			"parameters": {
+				"pollTimes": {
+					"item": [
+						{
+							"mode": "everyX",
+							"value": 5,
+							"unit": "minutes"
+						}
+					]
+				},
+				"event": "postPublished",
+				"externalIdPrefix": "aivideo-",
+				"stripPrefix": true
+			}
+		},
+		{
+			"id": "a08735b7-74c7-4147-999b-32358a6d022b",
+			"name": "When the video fails",
+			"type": "n8n-nodes-sprkly.sprklyTrigger",
+			"typeVersion": 1,
+			"position": [
+				-400,
+				1140
+			],
+			"parameters": {
+				"pollTimes": {
+					"item": [
+						{
+							"mode": "everyX",
+							"value": 5,
+							"unit": "minutes"
+						}
+					]
+				},
+				"event": "postFailed",
+				"externalIdPrefix": "aivideo-",
+				"stripPrefix": true
+			}
+		},
+		{
+			"id": "eb5eebfc-708c-4606-a61f-1f599f4e5dc0",
+			"name": "Write post status to row",
+			"type": "n8n-nodes-base.googleSheets",
+			"typeVersion": 4.7,
+			"position": [
+				-120,
+				1050
+			],
+			"parameters": {
+				"operation": "update",
+				"documentId": {
+					"__rl": true,
+					"value": "",
+					"mode": "url"
+				},
+				"sheetName": {
+					"__rl": true,
+					"value": "",
+					"mode": "list"
+				},
+				"columns": {
+					"mappingMode": "defineBelow",
+					"value": {
+						"Job ID": "={{ $json.sourceId }}",
+						"Status": "={{ $json.statusLabel }}",
+						"Link": "={{ $json.link }}",
+						"Error": "={{ $json.error }}"
+					},
+					"matchingColumns": [
+						"Job ID"
+					],
+					"schema": [
+						{
+							"id": "Status",
+							"displayName": "Status",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Prompt",
+							"displayName": "Prompt",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Caption",
+							"displayName": "Caption",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Title",
+							"displayName": "Title",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Accounts",
+							"displayName": "Accounts",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Job ID",
+							"displayName": "Job ID",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Video URL",
+							"displayName": "Video URL",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "sprkly Post ID",
+							"displayName": "sprkly Post ID",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": true
+						},
+						{
+							"id": "Link",
+							"displayName": "Link",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						},
+						{
+							"id": "Error",
+							"displayName": "Error",
+							"required": false,
+							"defaultMatch": false,
+							"display": true,
+							"type": "string",
+							"canBeUsedToMatch": true,
+							"removed": false
+						}
+					]
+				},
+				"options": {}
+			}
+		}
+	],
+	"connections": {
+		"Every 30 minutes": {
+			"main": [
+				[
+					{
+						"node": "Get ready rows",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Get ready rows": {
+			"main": [
+				[
+					{
+						"node": "One video per run",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"One video per run": {
+			"main": [
+				[
+					{
+						"node": "Mark row as making",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Mark row as making": {
+			"main": [
+				[
+					{
+						"node": "Start the video",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Start the video": {
+			"main": [
+				[
+					{
+						"node": "Wait 1 minute",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Wait 1 minute": {
+			"main": [
+				[
+					{
+						"node": "Check the job",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Check the job": {
+			"main": [
+				[
+					{
+						"node": "Video ready?",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Video ready?": {
+			"main": [
+				[
+					{
+						"node": "Get the finished video",
+						"type": "main",
+						"index": 0
+					}
+				],
+				[
+					{
+						"node": "Try again?",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Try again?": {
+			"main": [
+				[
+					{
+						"node": "Wait 1 minute",
+						"type": "main",
+						"index": 0
+					}
+				],
+				[
+					{
+						"node": "Write timeout to row",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Get the finished video": {
+			"main": [
+				[
+					{
+						"node": "Add video to sprkly",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Add video to sprkly": {
+			"main": [
+				[
+					{
+						"node": "Schedule video post",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Schedule video post": {
+			"main": [
+				[
+					{
+						"node": "Write result to row",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"When the video goes out": {
+			"main": [
+				[
+					{
+						"node": "Write post status to row",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"When the video fails": {
+			"main": [
+				[
+					{
+						"node": "Write post status to row",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		}
+	},
+	"active": false,
+	"pinData": {},
+	"settings": {
+		"executionOrder": "v1"
+	}
+}

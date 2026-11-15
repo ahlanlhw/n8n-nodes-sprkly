@@ -1,0 +1,327 @@
+{
+	"name": "Blog post summary to sprkly, held for approval",
+	"nodes": [
+		{
+			"id": "75e13923-6d73-4aaa-8aeb-4491a38e56d0",
+			"name": "Overview",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-1000,
+				-80
+			],
+			"parameters": {
+				"content": "## Sum up each new blog post in one social post\n\n### How it works\n- When your blog feed has a new post, it opens the article.\n- OpenAI writes one short summary. The link to the article goes at the end.\n- sprkly schedules it 1 hour from now with the article's main image, to the accounts in **Settings**.\n- The post has **Requires Approval** on. sprkly emails you an Approve link. Nothing goes out before you click it.\n- The AI lives in OpenAI. sprkly has no AI. It only publishes.\n- Telegram sends you the draft, or the reason it failed.\n\n### Setup\n- Needs the n8n-nodes-sprkly community node (Settings, Community Nodes).\n- Logins: a sprkly API key, an OpenAI key, a Telegram bot.\n- Put your feed link in **New blog post**.\n- In **Settings**, add your accounts, like `linkedin:My Page, threads:myhandle`, and your Telegram chat ID.\n- Instagram needs an image. Leave it out if your posts have no main image.\n- sprkly API docs: https://sprkly.app/docs/api\n- Node: https://github.com/ahlanlhw/n8n-nodes-sprkly\n\n### Customize\n- Change the voice in **Write the summary**.",
+				"height": 820,
+				"width": 520,
+				"color": 1
+			}
+		},
+		{
+			"id": "87ab9e1a-eefa-4c64-aa76-be1a24c23ed2",
+			"name": "Note: read and write",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-440,
+				80
+			],
+			"parameters": {
+				"content": "## Read the article, write one summary\nThe page gives the main image and the text. OpenAI only sees the first 6000 characters.",
+				"height": 580,
+				"width": 1120,
+				"color": 7
+			}
+		},
+		{
+			"id": "a02e9eaf-5673-41ba-b75f-ea57ffc0c0a0",
+			"name": "Note: post and tell",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				700,
+				80
+			],
+			"parameters": {
+				"content": "## Hold it and tell you\nExternal ID blogai plus the feed ID means a post is never made twice. Telegram tells you to approve it in the email from sprkly.",
+				"height": 580,
+				"width": 560,
+				"color": 7
+			}
+		},
+		{
+			"id": "2bc19bae-a275-440c-b97c-119fa8570c28",
+			"name": "New blog post",
+			"type": "n8n-nodes-base.rssFeedReadTrigger",
+			"typeVersion": 1,
+			"position": [
+				-400,
+				320
+			],
+			"parameters": {
+				"pollTimes": {
+					"item": [
+						{
+							"mode": "everyHour"
+						}
+					]
+				},
+				"feedUrl": "https://YOUR-BLOG.com/feed",
+				"options": {}
+			}
+		},
+		{
+			"id": "6f5687b1-d054-4384-b9e5-5e50fdfd9663",
+			"name": "Settings",
+			"type": "n8n-nodes-base.set",
+			"typeVersion": 3.4,
+			"position": [
+				-180,
+				320
+			],
+			"parameters": {
+				"assignments": {
+					"assignments": [
+						{
+							"id": "139dc440-5817-4a61-99e0-af57b8556654",
+							"name": "accounts",
+							"value": "linkedin:My Page, threads:myhandle",
+							"type": "string"
+						},
+						{
+							"id": "7f7d87ea-7f7e-44c3-8880-5e3c451e77d8",
+							"name": "telegramChatId",
+							"value": "YOUR_CHAT_ID",
+							"type": "string"
+						}
+					]
+				},
+				"options": {}
+			}
+		},
+		{
+			"id": "19728700-9497-42bb-9473-430de10ba413",
+			"name": "Fetch the article",
+			"type": "n8n-nodes-base.httpRequest",
+			"typeVersion": 4.2,
+			"position": [
+				40,
+				320
+			],
+			"parameters": {
+				"url": "={{ $('New blog post').item.json.link }}",
+				"options": {
+					"response": {
+						"response": {
+							"responseFormat": "text",
+							"outputPropertyName": "page"
+						}
+					}
+				}
+			}
+		},
+		{
+			"id": "2e17e8f0-4bb5-4c5b-bbe3-fae0c77309f8",
+			"name": "Read the article",
+			"type": "n8n-nodes-base.html",
+			"typeVersion": 1.2,
+			"position": [
+				260,
+				320
+			],
+			"parameters": {
+				"operation": "extractHtmlContent",
+				"dataPropertyName": "page",
+				"extractionValues": {
+					"values": [
+						{
+							"key": "image",
+							"cssSelector": "meta[property=\"og:image\"]",
+							"returnValue": "attribute",
+							"attribute": "content"
+						},
+						{
+							"key": "article",
+							"cssSelector": "article, main, body",
+							"returnValue": "text",
+							"skipSelectors": "script, style, nav, header, footer"
+						}
+					]
+				},
+				"options": {}
+			}
+		},
+		{
+			"id": "cce09769-31ce-4b0f-a78f-6f5e11c11468",
+			"name": "Write the summary",
+			"type": "@n8n/n8n-nodes-langchain.chainLlm",
+			"typeVersion": 1.9,
+			"position": [
+				480,
+				320
+			],
+			"parameters": {
+				"promptType": "define",
+				"text": "=Title: {{ $('New blog post').item.json.title }}\n\nArticle:\n{{ String($json.article || $('New blog post').item.json.contentSnippet || '').slice(0, 6000) }}",
+				"hasOutputParser": false,
+				"messages": {
+					"messageValues": [
+						{
+							"message": "You sum up a blog post as one social media post. Write under 300 characters: one or two plain sentences on the main point, then one line that makes people want to read more. No hashtags, no links, no quote marks. Do not add facts that are not in the article. Reply with the post text only."
+						}
+					]
+				},
+				"batching": {}
+			}
+		},
+		{
+			"id": "fac14796-35b4-412e-bcb3-23e693f86944",
+			"name": "OpenAI model",
+			"type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+			"typeVersion": 1.3,
+			"position": [
+				460,
+				520
+			],
+			"parameters": {
+				"model": {
+					"__rl": true,
+					"mode": "list",
+					"value": "gpt-4.1-mini",
+					"cachedResultName": "gpt-4.1-mini"
+				},
+				"options": {},
+				"builtInTools": {}
+			}
+		},
+		{
+			"id": "dbd2b28c-7756-4379-b460-786a0e173538",
+			"name": "Schedule the summary post",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				800,
+				320
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "create",
+				"accountMode": "name",
+				"accountNames": "={{ $('Settings').item.json.accounts }}",
+				"caption": "={{ $json.text.trim() + '\\n\\n' + $('New blog post').item.json.link }}",
+				"scheduledTime": "={{ $now.plus({ hours: 1 }).toISO() }}",
+				"output": "resultRow",
+				"additionalFields": {
+					"externalId": "={{ ($('New blog post').item.json.guid || $('New blog post').item.json.link) ? 'blogai-' + ($('New blog post').item.json.guid || $('New blog post').item.json.link) : '' }}",
+					"mediaUrls": "={{ String($('Read the article').item.json.image || '').startsWith('http') ? $('Read the article').item.json.image : '' }}",
+					"requireExternalId": true,
+					"requiresApproval": true,
+					"approvalNote": "Summary written by OpenAI from your blog post. Check it before you approve."
+				}
+			}
+		},
+		{
+			"id": "d8f87f0b-c025-4527-ad6f-964b23256a16",
+			"name": "Tell the owner",
+			"type": "n8n-nodes-base.telegram",
+			"typeVersion": 1.2,
+			"position": [
+				1020,
+				320
+			],
+			"parameters": {
+				"resource": "message",
+				"operation": "sendMessage",
+				"chatId": "={{ $('Settings').item.json.telegramChatId }}",
+				"text": "={{ $json.ok ? 'New draft for: ' + $('New blog post').item.json.title + '\\n\\n' + $json.text.trim() + '\\n\\nIt is held for you. Approve it in the email from sprkly.' : 'No post for: ' + $('New blog post').item.json.title + '\\n' + $json.error }}",
+				"additionalFields": {
+					"appendAttribution": false
+				}
+			}
+		}
+	],
+	"connections": {
+		"New blog post": {
+			"main": [
+				[
+					{
+						"node": "Settings",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Settings": {
+			"main": [
+				[
+					{
+						"node": "Fetch the article",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Fetch the article": {
+			"main": [
+				[
+					{
+						"node": "Read the article",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Read the article": {
+			"main": [
+				[
+					{
+						"node": "Write the summary",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"OpenAI model": {
+			"ai_languageModel": [
+				[
+					{
+						"node": "Write the summary",
+						"type": "ai_languageModel",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Write the summary": {
+			"main": [
+				[
+					{
+						"node": "Schedule the summary post",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Schedule the summary post": {
+			"main": [
+				[
+					{
+						"node": "Tell the owner",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		}
+	},
+	"active": false,
+	"pinData": {},
+	"settings": {
+		"executionOrder": "v1"
+	}
+}

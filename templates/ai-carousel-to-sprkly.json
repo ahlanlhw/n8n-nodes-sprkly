@@ -1,0 +1,406 @@
+{
+	"name": "AI image carousel from a form to sprkly, held for approval",
+	"nodes": [
+		{
+			"id": "2ef09b65-35d7-4f09-954c-304ece264b1a",
+			"name": "Overview",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-1000,
+				-80
+			],
+			"parameters": {
+				"content": "## Turn a topic into an image carousel, checked by you\n\n### How it works\n- Fill in the form: a topic and the accounts to post to.\n- OpenAI plans the slides and the caption. fal.ai makes one image per slide with Imagen 4.\n- sprkly keeps each image, then makes ONE carousel post with the slides in order. Each slide gets its text as alt text.\n- The post has **Requires Approval** on. sprkly emails you an Approve link. Nothing goes out before you click it.\n- The AI lives in OpenAI and fal.ai. sprkly has no AI. It only publishes.\n- The form shows the result when it is done. It takes about a minute.\n\n### Setup\n- Needs the n8n-nodes-sprkly community node (Settings, Community Nodes).\n- Logins: a sprkly API key, an OpenAI key, a fal.ai key.\n- Make a Header Auth login: name `Authorization`, value: the word `Key`, a space, then your fal.ai key. Add it to **Make slide image**.\n- fal.ai bills you for every image.\n- Accounts look like `instagram:myhandle, tiktok:myhandle, threads:myhandle`.\n- sprkly API docs: https://sprkly.app/docs/api\n- Node: https://github.com/ahlanlhw/n8n-nodes-sprkly\n\n### Customize\n- In **Settings**: the number of slides (4), the image style, and how many hours from now it posts (3).",
+				"height": 860,
+				"width": 520,
+				"color": 1
+			}
+		},
+		{
+			"id": "a9ea0b94-2800-4bfe-be21-e1977b168732",
+			"name": "Note: plan slides",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-440,
+				80
+			],
+			"parameters": {
+				"content": "## Plan the slides\nOpenAI returns the caption, a title for TikTok and one item per slide. The number of slides comes from Settings.",
+				"height": 600,
+				"width": 760,
+				"color": 7
+			}
+		},
+		{
+			"id": "ad1f8c24-34af-4613-b01b-a35913b14015",
+			"name": "Note: images and post",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				340,
+				80
+			],
+			"parameters": {
+				"content": "## One image per slide, one post\nEach slide image goes into sprkly and gives back a media ID. The IDs are collected in slide order and sent as one carousel, held for approval.",
+				"height": 600,
+				"width": 1320,
+				"color": 7
+			}
+		},
+		{
+			"id": "0a672983-a51b-47a7-8be6-67eeaa0d30f3",
+			"name": "Carousel form",
+			"type": "n8n-nodes-base.formTrigger",
+			"typeVersion": 2.3,
+			"position": [
+				-400,
+				320
+			],
+			"parameters": {
+				"formTitle": "Make a carousel",
+				"formDescription": "The post waits for your approval in sprkly before it goes out.",
+				"formFields": {
+					"values": [
+						{
+							"fieldLabel": "Topic",
+							"fieldType": "textarea",
+							"placeholder": "What should the carousel teach?",
+							"requiredField": true
+						},
+						{
+							"fieldLabel": "Accounts",
+							"placeholder": "instagram:myhandle, tiktok:myhandle",
+							"requiredField": true
+						}
+					]
+				},
+				"options": {}
+			}
+		},
+		{
+			"id": "77ed03d9-5b72-41be-8a9c-f426574ebd8a",
+			"name": "Settings",
+			"type": "n8n-nodes-base.set",
+			"typeVersion": 3.4,
+			"position": [
+				-180,
+				320
+			],
+			"parameters": {
+				"assignments": {
+					"assignments": [
+						{
+							"id": "3c793ca6-a2fc-4576-959a-6668fd13b24c",
+							"name": "slides",
+							"value": 4,
+							"type": "number"
+						},
+						{
+							"id": "8b8cc353-f0ea-49ce-aa47-1b19e8d8534d",
+							"name": "imageStyle",
+							"value": "clean flat illustration, bright colours, lots of empty space, one short headline in large bold letters",
+							"type": "string"
+						},
+						{
+							"id": "70d34347-28d0-4d18-90d6-a187284f2277",
+							"name": "hoursFromNow",
+							"value": 3,
+							"type": "number"
+						}
+					]
+				},
+				"options": {}
+			}
+		},
+		{
+			"id": "01b11215-77b7-48a2-9a6b-80d7e0350693",
+			"name": "Plan the slides",
+			"type": "@n8n/n8n-nodes-langchain.chainLlm",
+			"typeVersion": 1.9,
+			"position": [
+				40,
+				320
+			],
+			"parameters": {
+				"promptType": "define",
+				"text": "=Topic: {{ $('Carousel form').first().json.Topic }}\nNumber of slides: {{ $json.slides }}",
+				"hasOutputParser": true,
+				"messages": {
+					"messageValues": [
+						{
+							"message": "You plan an image carousel for social media. Return exactly the number of slides asked for. Slide 1 is a hook, the last slide is a call to action. For each slide give \"text\": the headline shown on the slide, under 8 words, and \"image_prompt\": a picture that shows that headline in large letters. Also return \"caption\": under 1500 characters, plain words, and \"title\": under 80 characters. Do not make up facts, prices or numbers."
+						}
+					]
+				},
+				"batching": {}
+			}
+		},
+		{
+			"id": "c10ac88e-08fc-4ca2-b7a9-c38e4603b066",
+			"name": "OpenAI model",
+			"type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+			"typeVersion": 1.3,
+			"position": [
+				20,
+				520
+			],
+			"parameters": {
+				"model": {
+					"__rl": true,
+					"mode": "list",
+					"value": "gpt-4.1-mini",
+					"cachedResultName": "gpt-4.1-mini"
+				},
+				"options": {},
+				"builtInTools": {}
+			}
+		},
+		{
+			"id": "9e0e8bc6-7bbf-44c9-9377-1f8da10a545f",
+			"name": "Slide plan format",
+			"type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+			"typeVersion": 1.3,
+			"position": [
+				200,
+				520
+			],
+			"parameters": {
+				"jsonSchemaExample": "{\n  \"title\": \"A short title\",\n  \"caption\": \"The post caption\",\n  \"slides\": [\n    {\n      \"text\": \"Slide headline\",\n      \"image_prompt\": \"What the image shows\"\n    }\n  ]\n}"
+			}
+		},
+		{
+			"id": "41e8daae-df33-49e2-9f85-7d7cfc480f34",
+			"name": "One item per slide",
+			"type": "n8n-nodes-base.splitOut",
+			"typeVersion": 1,
+			"position": [
+				380,
+				320
+			],
+			"parameters": {
+				"fieldToSplitOut": "output.slides",
+				"options": {}
+			}
+		},
+		{
+			"id": "ebfe529d-cc69-44a0-8a64-ef15aafa57fd",
+			"name": "Make slide image",
+			"type": "n8n-nodes-base.httpRequest",
+			"typeVersion": 4.2,
+			"position": [
+				600,
+				320
+			],
+			"parameters": {
+				"authentication": "genericCredentialType",
+				"genericAuthType": "httpHeaderAuth",
+				"options": {},
+				"method": "POST",
+				"url": "https://fal.run/fal-ai/imagen4/preview",
+				"sendBody": true,
+				"specifyBody": "json",
+				"jsonBody": "={{ { prompt: $json.image_prompt + '. Style: ' + $('Settings').first().json.imageStyle, aspect_ratio: '1:1', num_images: 1 } }}"
+			}
+		},
+		{
+			"id": "75947db1-5c3b-4f5d-9bf3-e2cb49eb8caf",
+			"name": "Add slide to sprkly",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				820,
+				320
+			],
+			"parameters": {
+				"resource": "media",
+				"operation": "addFromUrl",
+				"url": "={{ $json.images[0].url }}"
+			}
+		},
+		{
+			"id": "c317ced2-f909-4efa-b6cc-d4421d8c4127",
+			"name": "Collect media IDs in order",
+			"type": "n8n-nodes-base.aggregate",
+			"typeVersion": 1,
+			"position": [
+				1040,
+				320
+			],
+			"parameters": {
+				"fieldsToAggregate": {
+					"fieldToAggregate": [
+						{
+							"fieldToAggregate": "mediaId"
+						}
+					]
+				},
+				"options": {}
+			}
+		},
+		{
+			"id": "662a0a05-5b70-469b-bf83-d8b4d110714d",
+			"name": "Post the carousel",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				1260,
+				320
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "create",
+				"accountMode": "name",
+				"accountNames": "={{ $('Carousel form').first().json.Accounts }}",
+				"caption": "={{ $('Plan the slides').first().json.output.caption }}",
+				"scheduledTime": "={{ $now.plus({ hours: $('Settings').first().json.hoursFromNow || 3 }).toISO() }}",
+				"mediaIds": "={{ $json.mediaId.join(',') }}",
+				"output": "resultRow",
+				"additionalFields": {
+					"externalId": "={{ 'aicarousel-' + $execution.id }}",
+					"requireExternalId": true,
+					"requiresApproval": true,
+					"approvalNote": "Slides made by OpenAI and fal.ai. Check every slide before you approve.",
+					"title": "={{ $('Plan the slides').first().json.output.title }}",
+					"altText": "={{ $('One item per slide').all().map(slide => slide.json.text).join('\\n') }}",
+					"tiktokPrivacyLevel": "PUBLIC_TO_EVERYONE"
+				}
+			}
+		},
+		{
+			"id": "9b84b238-6ee2-4734-913b-2c31008e0c69",
+			"name": "Show the result",
+			"type": "n8n-nodes-base.form",
+			"typeVersion": 2.3,
+			"position": [
+				1480,
+				320
+			],
+			"parameters": {
+				"operation": "completion",
+				"respondWith": "text",
+				"completionTitle": "={{ $json.ok ? 'Waiting for your approval' : 'Not scheduled' }}",
+				"completionMessage": "={{ $json.ok ? 'Your carousel is in sprkly. Approve it from the email sprkly sent you. Post ID: ' + $json.postId : 'sprkly did not take it: ' + $json.error }}",
+				"options": {}
+			}
+		}
+	],
+	"connections": {
+		"Carousel form": {
+			"main": [
+				[
+					{
+						"node": "Settings",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Settings": {
+			"main": [
+				[
+					{
+						"node": "Plan the slides",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"OpenAI model": {
+			"ai_languageModel": [
+				[
+					{
+						"node": "Plan the slides",
+						"type": "ai_languageModel",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Slide plan format": {
+			"ai_outputParser": [
+				[
+					{
+						"node": "Plan the slides",
+						"type": "ai_outputParser",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Plan the slides": {
+			"main": [
+				[
+					{
+						"node": "One item per slide",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"One item per slide": {
+			"main": [
+				[
+					{
+						"node": "Make slide image",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Make slide image": {
+			"main": [
+				[
+					{
+						"node": "Add slide to sprkly",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Add slide to sprkly": {
+			"main": [
+				[
+					{
+						"node": "Collect media IDs in order",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Collect media IDs in order": {
+			"main": [
+				[
+					{
+						"node": "Post the carousel",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Post the carousel": {
+			"main": [
+				[
+					{
+						"node": "Show the result",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		}
+	},
+	"active": false,
+	"pinData": {},
+	"settings": {
+		"executionOrder": "v1"
+	}
+}
