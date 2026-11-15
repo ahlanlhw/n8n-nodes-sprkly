@@ -290,6 +290,25 @@ test('result row: no caption and a media link that is not http are row problems'
 	assert.match(out[1].error, /Media URL photo\.jpg is not a web link/);
 });
 
+test('result row: a field expression that fails is a row problem, the next row still goes', async () => {
+	const { out } = await runCreate({
+		items: [sheetRow(1), sheetRow(2)],
+		params: rowParams({
+			additionalFields: (item) => {
+				if (item.json['Row ID'] === 1) throw new Error('Expression failed');
+				return { externalId: `sheet-${item.json['Row ID']}` };
+			},
+		}),
+	});
+	assert.deepEqual(
+		out.map((row) => [row.status, row.error]),
+		[
+			['Error', 'Expression failed'],
+			['Scheduled', ''],
+		],
+	);
+});
+
 test('result row: a 401 stops the run once', async () => {
 	await assert.rejects(
 		runCreate({

@@ -255,8 +255,7 @@ export class Sprkly implements INodeType {
 		 * and the rows then stay Approved for the next run.
 		 */
 		const createResultRow = async (i: number): Promise<IDataObject> => {
-			const extra = this.getNodeParameter('additionalFields', i, {}) as IDataObject;
-			const externalId = String(extra.externalId ?? '').trim();
+			let externalId = '';
 			const keep = this.getNodeParameter('keepInputFields', i, true) as boolean;
 			const row = (fields: Partial<ResultRow>): IDataObject => ({
 				...(keep ? items[i].json : {}),
@@ -275,6 +274,9 @@ export class Sprkly implements INodeType {
 
 			let response: RawResponse;
 			try {
+				// Inside the try: a broken expression in a field is a problem with this row only.
+				const extra = this.getNodeParameter('additionalFields', i, {}) as IDataObject;
+				externalId = String(extra.externalId ?? '').trim();
 				const body = await createBody(i, true);
 				response = await sprklyApiRawRequest.call(this, 'POST', '/api/v1/posts', {
 					body,
