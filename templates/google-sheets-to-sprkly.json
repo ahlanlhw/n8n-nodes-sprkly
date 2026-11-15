@@ -11,7 +11,7 @@
 				-80
 			],
 			"parameters": {
-				"content": "## Post from a Google Sheet with sprkly\n\n### How it works\n- Every 15 minutes it reads the rows with Status **Approved**.\n- The sprkly node checks each row: a caption, a time that has not come yet, known accounts and web links for media.\n- A good row becomes a scheduled post. External ID `sheet-<Row ID>` means a re-run never posts twice. A row with no Row ID, or a Row ID used twice, gets **Error**.\n- A bad row gets Status **Error** and a plain reason. The other rows still go.\n- Each row gets back its Status, sprkly Post ID, time, link and error.\n- When a post goes out, the row gets **Published** and the link. When it fails, **Failed** and the reason.\n\n### Setup\n- Needs the community node `n8n-nodes-sprkly` 0.2.0 or later: https://github.com/ahlanlhw/n8n-nodes-sprkly\n- Add your sprkly API key to the 3 sprkly nodes. API docs: https://sprkly.app/docs/api\n- Add your Google login to the 3 sheet nodes, and pick your sheet in each.\n- Import `sheet-template.csv`. Keep Schedule Time as plain text.\n- Give every row its own Row ID. A row without one is never posted.\n- Set your time zone in Workflow settings. Times in the sheet use it.\n\n### Customization\n- Change how often it runs in **Every 15 minutes**.\n- Add a Title column for TikTok and YouTube, and map it in **Schedule post in sprkly**, under Additional Fields.",
+				"content": "## Post from a Google Sheet with sprkly\n\n### How it works\n- Every 15 minutes it reads the rows with Status **Approved**.\n- The sprkly node checks each row: a caption, a time that has not come yet, known accounts and web links for media.\n- A good row becomes a scheduled post. External ID `sheet-<Row ID>` means a re-run never posts twice. A row with no Row ID, or a Row ID used twice, gets **Error**.\n- A bad row gets Status **Error** and a plain reason. The other rows still go.\n- Each row gets back its Status, sprkly Post ID, time, link and error.\n- When a post goes out, the row gets **Published** and the link. When it fails, **Failed** and the reason.\n\n### Setup\n- Needs the community node `n8n-nodes-sprkly` 0.2.0 or later: https://github.com/ahlanlhw/n8n-nodes-sprkly\n- Add your sprkly API key to the 3 sprkly nodes. API docs: https://sprkly.app/docs/api\n- Add your Google login to the 3 sheet nodes, and pick your sheet in each.\n- Columns: Row ID, Status, Caption, Schedule Time, Accounts, Media URL, sprkly Post ID, Scheduled For, Link, Error. Keep Schedule Time as plain text.\n- Give every row its own Row ID. A row without one is never posted.\n- Set your time zone in Workflow settings. Times in the sheet use it.\n\n### Customization\n- Change how often it runs in **Every 15 minutes**.\n- Add a Title column for TikTok and YouTube, and map it in **Schedule post in sprkly**, under Additional Fields.",
 				"height": 760,
 				"width": 520,
 				"color": 1
@@ -521,6 +521,7 @@
 		}
 	},
 	"pinData": {},
+	"active": false,
 	"settings": {
 		"executionOrder": "v1"
 	}

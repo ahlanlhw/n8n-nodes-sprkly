@@ -11,7 +11,7 @@
         -80
       ],
       "parameters": {
-        "content": "## Post from a Google Sheet with sprkly\n\n### How it works\n- Every 15 minutes it reads the rows with Status **Approved**.\n- It checks each row: a Row ID, a caption, a time that has not come yet, an account, and web links for media.\n- A bad row gets Status **Error** and a plain reason.\n- A good row is scheduled in sprkly. External ID `sheet-<Row ID>` means a re-run never posts twice.\n- The row gets **Scheduled**, the sprkly Post ID and the time.\n- Every 5 minutes it asks sprkly which posts changed. A post that went out writes **Published** and the link. A failed one writes **Failed** and the reason.\n\n### Setup\n- Get an API key in sprkly: Settings, then API Keys. API docs: https://sprkly.app/docs/api\n- Make a Bearer Auth credential with the key. Pick it in the 3 sprkly nodes.\n- Add your Google Sheets login to the 3 sheet nodes, and pick your sheet in each.\n- Sheet columns: Row ID, Status, Caption, Schedule Time, Accounts, Media URL, sprkly Post ID, Scheduled For, Link, Error.\n- Set your time zone in Workflow settings. Times in the sheet use it.\n- Turn the workflow on. Status updates start from then.\n\n### Customization\n- Change how often it runs in **Every 15 minutes**.\n- For TikTok and YouTube, add a Title column and put it in the request in **Match accounts to rows**.",
+        "content": "## Post from a Google Sheet with sprkly\n\n### How it works\n- Every 15 minutes it reads the rows with Status **Approved**.\n- It checks each row: a Row ID, a caption, a time that has not come yet, an account, and web links for media.\n- A bad row gets Status **Error** and a plain reason.\n- A good row is scheduled in sprkly. External ID `sheet-<Row ID>` means a re-run never posts twice.\n- The row gets **Scheduled**, the sprkly Post ID and the time.\n- Every 5 minutes it asks sprkly which posts changed. A post that went out writes **Published** and the link. A failed one writes **Failed** and the reason.\n\n### Setup\n- Get an API key in sprkly: Settings, then API Keys. API docs: https://sprkly.app/docs/api\n- Make a Bearer Auth credential with the key. Pick it in the 3 sprkly nodes.\n- Add your Google Sheets login to the 3 sheet nodes, and pick your sheet in each.\n- Columns: Row ID, Status, Caption, Schedule Time, Accounts, Media URL, sprkly Post ID, Scheduled For, Link, Error.\n- Set your time zone in Workflow settings. Times in the sheet use it.\n- Turn the workflow on. Status updates start from then.\n\n### Customization\n- Change how often it runs in **Every 15 minutes**.\n- For TikTok and YouTube, add a Title column and put it in the request in **Match accounts to rows**.",
         "height": 900,
         "width": 520,
         "color": 1
@@ -772,6 +772,7 @@
     }
   },
   "pinData": {},
+  "active": false,
   "settings": {
     "executionOrder": "v1"
   }

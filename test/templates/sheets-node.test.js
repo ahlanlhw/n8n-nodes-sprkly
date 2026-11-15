@@ -1,17 +1,17 @@
-// Static checks on workflow.json. No n8n run, no network, no credentials.
+// Static checks on templates/google-sheets-to-sprkly.json. No n8n run, no network, no credentials.
 // Run from the repo root after npm run build:
-//   node templates/sheets-content-calendar/test/workflow.test.js [path to n8n-nodes-base]
-// With the n8n-nodes-base path, each n8n node type and version is checked against that install.
+//   node test/templates/sheets-node.test.js [path to n8n-nodes-base]
+// With the n8n-nodes-base path (or env N8N_NODES_BASE), each n8n node type and version is checked against that install.
 'use strict';
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const repo = path.join(__dirname, '..', '..', '..');
-const text = fs.readFileSync(path.join(__dirname, '..', 'workflow.json'), 'utf8');
+const repo = path.join(__dirname, '..', '..');
+const text = fs.readFileSync(path.join(repo, 'templates', 'google-sheets-to-sprkly.json'), 'utf8');
 const workflow = JSON.parse(text);
-const nodesBase = process.argv[2];
+const nodesBase = process.argv[2] || process.env.N8N_NODES_BASE;
 
 let passed = 0;
 let skipped = 0;
