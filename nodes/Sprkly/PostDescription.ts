@@ -94,6 +94,22 @@ export const postOperations: INodeProperties[] = [
 export const postFields: INodeProperties[] = [
 	// ----- Create -----
 	{
+		displayName: 'Pick Accounts',
+		name: 'accountMode',
+		type: 'options',
+		noDataExpression: true,
+		options: [
+			{
+				name: 'By Name',
+				value: 'name',
+				description: 'Write them as platform:handle, for example from a sheet column',
+			},
+			{ name: 'From the List', value: 'list', description: 'Choose connected accounts' },
+		],
+		default: 'list',
+		displayOptions: showFor(['create']),
+	},
+	{
 		displayName: 'Account Names or IDs',
 		name: 'profileIds',
 		type: 'multiOptions',
@@ -102,8 +118,20 @@ export const postFields: INodeProperties[] = [
 		typeOptions: { loadOptionsMethod: 'getAccounts' },
 		required: true,
 		default: [],
-		displayOptions: showFor(['create']),
+		displayOptions: { show: { resource: ['post'], operation: ['create'], accountMode: ['list'] } },
 		hint: 'The connected accounts to post to. sprkly makes one post per account.',
+	},
+	{
+		displayName: 'Accounts By Name',
+		name: 'accountNames',
+		type: 'string',
+		required: true,
+		default: '',
+		placeholder: 'e.g. instagram:myhandle, telegram:My channel',
+		displayOptions: { show: { resource: ['post'], operation: ['create'], accountMode: ['name'] } },
+		description:
+			'Each account as platform:handle, with commas between several. Case and a leading @ do not matter.',
+		hint: 'sprkly makes one post per account',
 	},
 	{
 		displayName: 'Caption',
@@ -121,7 +149,18 @@ export const postFields: INodeProperties[] = [
 		default: '',
 		displayOptions: showFor(['create']),
 		description:
-			'When to post. Leave empty to send it out within about a minute. A time without a time zone uses the time zone of this workflow.',
+			'When to post, like 2026-12-01 09:00. A time without a time zone uses the time zone of this workflow. Dates like 01/12/2026 are refused.',
+	},
+	{
+		displayName: 'Post Now',
+		name: 'postNow',
+		type: 'boolean',
+		default: false,
+		displayOptions: {
+			show: { resource: ['post'], operation: ['create'], '@version': [{ _cnd: { gte: 1.1 } }] },
+		},
+		description:
+			'Whether to send the post out within about a minute when Schedule Time is empty. When off, an empty Schedule Time is refused and nothing is posted.',
 	},
 	{
 		displayName: 'Media IDs',
@@ -131,6 +170,38 @@ export const postFields: INodeProperties[] = [
 		placeholder: 'e.g. 6f1c2a3b-..., 9d8e7f6a-...',
 		displayOptions: showFor(['create']),
 		description: MEDIA_IDS_DESCRIPTION,
+	},
+	{
+		displayName: 'Output',
+		name: 'output',
+		type: 'options',
+		noDataExpression: true,
+		options: [
+			{
+				name: 'API Response',
+				value: 'apiResponse',
+				description: 'The answer from sprkly as it is. A refused post stops the workflow.',
+			},
+			{
+				name: 'Result Row',
+				value: 'resultRow',
+				description:
+					'One row per item with ok, status, postId, scheduledFor, link and error. A refused post never stops the workflow.',
+			},
+		],
+		default: 'apiResponse',
+		displayOptions: showFor(['create']),
+	},
+	{
+		displayName: 'Keep Input Fields',
+		name: 'keepInputFields',
+		type: 'boolean',
+		default: true,
+		displayOptions: {
+			show: { resource: ['post'], operation: ['create'], output: ['resultRow'] },
+		},
+		description:
+			'Whether to keep the fields of the input item, such as row_number, next to the result',
 	},
 	{
 		displayName: 'Additional Fields',
@@ -180,7 +251,7 @@ export const postFields: INodeProperties[] = [
 				default: '',
 				placeholder: 'e.g. https://example.com/photo.jpg',
 				description:
-					'Public links to images or videos, in slide order. Separate several with commas. Google Drive and Dropbox share links work too.',
+					'Public links to images or videos, in slide order. Separate several with commas, spaces or new lines. Google Drive and Dropbox share links work too.',
 			},
 			{
 				displayName: 'Platform Options (JSON)',

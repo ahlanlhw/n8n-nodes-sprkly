@@ -51,6 +51,32 @@ export async function sprklyApiRequest(
 	path: string,
 	options: RequestOptions = {},
 ): Promise<IDataObject> {
+	const response = await sprklyApiRawRequest.call(this, method, path, options);
+	if (response.statusCode >= 400) {
+		throw sprklyApiError(
+			this.getNode(),
+			response.statusCode,
+			response.body,
+			response.headers,
+			options.itemIndex,
+		);
+	}
+	return response.body;
+}
+
+export type RawResponse = {
+	body: IDataObject;
+	headers: FullResponse['headers'];
+	statusCode: number;
+};
+
+/** The same call, but a refusal comes back as a status code instead of an error. */
+export async function sprklyApiRawRequest(
+	this: SprklyContext,
+	method: IHttpRequestMethods,
+	path: string,
+	options: RequestOptions = {},
+): Promise<RawResponse> {
 	const credentials = await this.getCredentials('sprklyApi');
 	const baseUrl = String(credentials.baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, '');
 
@@ -70,17 +96,11 @@ export async function sprklyApiRequest(
 		request,
 	)) as FullResponse;
 
-	const body = parseBody(response.body);
-	if (response.statusCode >= 400) {
-		throw sprklyApiError(
-			this.getNode(),
-			response.statusCode,
-			body,
-			response.headers,
-			options.itemIndex,
-		);
-	}
-	return body;
+	return {
+		body: parseBody(response.body),
+		headers: response.headers,
+		statusCode: response.statusCode,
+	};
 }
 
 function parseBody(raw: unknown): IDataObject {
@@ -113,6 +133,22 @@ export function sprklyApiError(
 	headers: FullResponse['headers'],
 	itemIndex?: number,
 ): NodeApiError {
+	const { message, hint, code } = describeApiRefusal(statusCode, body, headers);
+	const description = [hint, code ? `Code: ${code}` : ''].filter(Boolean).join(' ');
+	return new NodeApiError(node, body as JsonObject, {
+		message,
+		description: description || undefined,
+		httpCode: String(statusCode),
+		itemIndex,
+	});
+}
+
+/** The API's own sentence, and what to do next. */
+export function describeApiRefusal(
+	statusCode: number,
+	body: IDataObject,
+	headers: FullResponse['headers'],
+): { message: string; hint: string; code: string } {
 	const code = typeof body.code === 'string' ? body.code : '';
 	let message =
 		typeof body.error === 'string' && body.error
@@ -145,13 +181,7 @@ export function sprklyApiError(
 			"Check the 'Post ID'. A deleted post, or one on an account this key cannot use, also reads as not found.";
 	}
 
-	const description = [hint, code ? `Code: ${code}` : ''].filter(Boolean).join(' ');
-	return new NodeApiError(node, body as JsonObject, {
-		message,
-		description: description || undefined,
-		httpCode: String(statusCode),
-		itemIndex,
-	});
+	return { message, hint, code };
 }
 
 /** A multipart/form-data body with one file field, built by hand so the package needs no library. */
@@ -211,18 +241,16 @@ export function toApiTime(value: unknown, timeZone: string): string | null {
 		return Number.isNaN(date.getTime()) ? null : date.toISOString();
 	}
 	const match = text.match(
-		/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?)?$/,
+		/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?)?$/,
 	);
 	if (!match) return null;
-	const [, y, mo, d, h, mi, s] = match;
-	const wallClock = Date.UTC(
-		Number(y),
-		Number(mo) - 1,
-		Number(d),
-		Number(h ?? 0),
-		Number(mi ?? 0),
-		Number(s ?? 0),
-	);
+	const [y, mo, d, h, mi, s] = match.slice(1).map((part) => Number(part ?? 0));
+	const wallClock = Date.UTC(y, mo - 1, d, h, mi, s);
+	// 2026-02-30 or 25:00 would roll over into another day: refuse it instead.
+	const check = new Date(wallClock);
+	if (check.getUTCMonth() !== mo - 1 || check.getUTCDate() !== d || h > 23 || mi > 59 || s > 59) {
+		return null;
+	}
 	let zone = timeZone || 'UTC';
 	try {
 		zoneOffsetMs(wallClock, zone);
@@ -239,6 +267,78 @@ export function toApiTime(value: unknown, timeZone: string): string | null {
 export function toList(value: unknown): string[] {
 	const raw = Array.isArray(value) ? value : String(value ?? '').split(/[\n,]/);
 	return raw.map((entry) => String(entry ?? '').trim()).filter(Boolean);
+}
+
+/** Links from one sheet cell: commas, spaces or new lines between them. A link never has a raw space. */
+export function toUrlList(value: unknown): string[] {
+	const raw = Array.isArray(value) ? value : String(value ?? '').split(/[\s,]+/);
+	return raw.map((entry) => String(entry ?? '').trim()).filter(Boolean);
+}
+
+/** A date written with slashes, like 01/12/2026: day first or month first cannot be told apart. */
+export const isSlashDate = (value: unknown) =>
+	/^\d{1,2}[/.]\d{1,2}[/.]\d{2,4}\b/.test(String(value ?? '').trim());
+
+const normalizeName = (value: unknown) =>
+	String(value ?? '')
+		.trim()
+		.replace(/^@/, '')
+		.toLowerCase();
+
+/**
+ * "instagram:myhandle, telegram:My channel" to account IDs. Platform and handle match without
+ * case, spaces around them or a leading @. Returns the first problem as a sentence instead.
+ */
+export function resolveAccountNames(
+	names: unknown,
+	accounts: IDataObject[],
+): { ids: string[] } | { problem: string } {
+	const refs = toList(names);
+	if (refs.length === 0) {
+		return { problem: 'Accounts is empty. Write them like instagram:myhandle.' };
+	}
+	const ids: string[] = [];
+	for (const ref of refs) {
+		const cut = ref.indexOf(':');
+		if (cut < 1) {
+			return { problem: `"${ref}" is not platform:handle. Write it like instagram:myhandle.` };
+		}
+		const platform = normalizeName(ref.slice(0, cut));
+		const handle = normalizeName(ref.slice(cut + 1));
+		const matches = accounts.filter(
+			(account) =>
+				normalizeName(account.platform) === platform && normalizeName(account.handle) === handle,
+		);
+		if (matches.length === 0) {
+			return {
+				problem: `No connected sprkly account is ${ref}. Check the platform and the name in sprkly.`,
+			};
+		}
+		if (matches.length > 1) {
+			return {
+				problem: `More than one connected sprkly account is ${ref}. Pick the account from the list instead.`,
+			};
+		}
+		const id = String(matches[0].id);
+		if (!ids.includes(id)) ids.push(id);
+	}
+	return { ids };
+}
+
+/**
+ * The External ID as it was sent. With several accounts sprkly stores
+ * <External ID>:<platform>:<account ID> on each post, so that ending is removed. Only the exact
+ * ending of this post is removed, so an ID with its own colons stays whole.
+ */
+export function sourceIdOf(post: IDataObject): string {
+	const externalId = typeof post.externalId === 'string' ? post.externalId : '';
+	const platform = Array.isArray(post.platforms) ? String(post.platforms[0] ?? '') : '';
+	const accountId = Array.isArray(post.profileIds) ? String(post.profileIds[0] ?? '') : '';
+	const suffix = `:${platform}:${accountId}`;
+	if (platform && accountId && externalId.endsWith(suffix) && externalId.length > suffix.length) {
+		return externalId.slice(0, -suffix.length);
+	}
+	return externalId;
 }
 
 export type PostPage = { posts: IDataObject[] };

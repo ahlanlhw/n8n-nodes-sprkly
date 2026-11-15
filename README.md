@@ -19,6 +19,7 @@ With this node you can:
 - [Credentials](#credentials)
 - [Operations](#operations)
 - [Trigger](#trigger)
+- [Use it from a spreadsheet](#use-it-from-a-spreadsheet)
 - [Example flows](#example-flows)
 - [Limits](#limits)
 - [Compatibility](#compatibility)
@@ -59,7 +60,7 @@ n8n checks the key when you save the credential.
 
 ### Post
 
-- **Create**: schedule a post. Leave **Schedule Time** empty to send it out within about a minute.
+- **Create**: schedule a post. To send it out within about a minute, leave **Schedule Time** empty and turn on **Post Now**.
 - **Get**: one post with its status, its link, and the reason if it failed.
 - **Get Many**: list posts. Filter by status, or by the time of the last change.
 - **Update**: change the caption, time, accounts, media, alt text or post type of a post that has not gone out.
@@ -67,13 +68,18 @@ n8n checks the key when you save the credential.
 
 ### Create fields
 
+- **Pick Accounts**: **From the List** (default) or **By Name**.
 - **Account Names or IDs**: where to post. sprkly makes one post per account.
+- **Accounts By Name**: in place of the list, like `instagram:myhandle, telegram:My channel`. Case and a leading `@` do not matter.
 - **Caption**: the text of the post.
-- **Schedule Time**: when to post. A time without a time zone uses the time zone of the workflow.
+- **Schedule Time**: when to post, like `2026-12-01 09:00`. A time without a time zone uses the time zone of the workflow. Dates like `01/12/2026` are refused.
+- **Post Now**: off by default. When off, an empty **Schedule Time** is refused and nothing is posted.
 - **Media IDs**: from Upload or Add From URL. Put several in slide order, with commas.
+- **Output**: **API Response** (default) or **Result Row**. See [Use it from a spreadsheet](#use-it-from-a-spreadsheet).
+- **Keep Input Fields**: with Result Row, keep the input fields, like `row_number`. On by default.
 - **Additional Fields**:
   - **Title**: TikTok and YouTube need one.
-  - **Media URLs**: public links, if you did not upload first.
+  - **Media URLs**: public links, if you did not upload first. Commas, spaces or new lines between them.
   - **Post Type**: what the post is for, for your own reports.
   - **External ID**: your own ID for the post. See the tip below.
   - **Requires Approval**: hold the post until the owner approves it by email.
@@ -97,6 +103,27 @@ Notes:
 - When you turn the workflow on, it starts from that moment. Older posts do not fire.
 - Each post fires once per event.
 - In a test run it shows the newest matching post, so you can map its fields.
+- **External ID Starts With**: only posts whose External ID starts with this, like `sheet-`.
+- **Remove It From Source ID**: `sheet-12` gives `12`.
+
+Each post also comes with:
+
+- `sourceId`: the External ID you sent. sprkly adds `:platform:account` when a post goes to several accounts. That part is removed.
+- `statusLabel`: `Published` or `Failed`.
+- `link`: the link to the live post, or empty.
+- `error`: why it failed, or empty.
+
+## Use it from a spreadsheet
+
+Set **Output** to **Result Row** on Post, Create. Then:
+
+- Each input row gives exactly one result row. A bad row never stops the workflow.
+- The result row has `ok`, `status`, `postId`, `postIds`, `scheduledFor`, `link`, `error` and `externalId`.
+- `status` is `Scheduled`, `Published`, `Failed` or `Error`. `error` says why in plain words.
+- The row's own fields stay, so a Google Sheets update can match on `row_number`.
+- A second run with the same External ID posts nothing. It gives back the first post.
+- Only a wrong API key stops the run. Your rows then stay as they were.
+- See the template in `templates/sheets-content-calendar`.
 
 ## Example flows
 
@@ -144,6 +171,7 @@ Add a **sprkly Trigger** on **Post Failed** in another workflow to get a message
 
 ## Version history
 
+- 0.2.0: Accounts By Name, Post Now, Result Row output on Post, Create. sourceId and an External ID filter on the trigger.
 - 0.1.0: first release. Account, Media and Post operations, and the sprkly Trigger.
 
 ## License

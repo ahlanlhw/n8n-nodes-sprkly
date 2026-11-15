@@ -11,15 +11,22 @@ import type {
 import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
 import { accountFields, accountOperations } from './AccountDescription';
+import type { RawResponse } from './GenericFunctions';
 import {
 	buildMultipartFile,
+	describeApiRefusal,
+	isSlashDate,
 	LIST_MAX,
 	MAX_UPLOAD_BYTES,
 	pagePostsChangedSince,
+	resolveAccountNames,
 	simplifyPost,
+	sprklyApiError,
+	sprklyApiRawRequest,
 	sprklyApiRequest,
 	toApiTime,
 	toList,
+	toUrlList,
 } from './GenericFunctions';
 import { mediaFields, mediaOperations } from './MediaDescription';
 import { postFields, postOperations } from './PostDescription';
@@ -49,6 +56,21 @@ function parseJsonObject(value: unknown): IDataObject | null {
 		: null;
 }
 
+/** What Create gives back with Output = Result Row, one per input item. */
+type ResultRow = {
+	ok: boolean;
+	status: 'Scheduled' | 'Published' | 'Failed' | 'Error';
+	/** The post ID, or several joined with commas when the item went to several accounts. */
+	postId: string;
+	postIds: string[];
+	scheduledFor: string;
+	link: string;
+	error: string;
+	externalId: string;
+};
+
+const textOf = (value: unknown) => (value === undefined || value === null ? '' : String(value));
+
 function setMedia(body: IDataObject, value: unknown) {
 	const ids = toList(value);
 	if (ids.length === 1) body.mediaId = ids[0];
@@ -61,7 +83,9 @@ export class Sprkly implements INodeType {
 		name: 'sprkly',
 		icon: { light: 'file:../../icons/sprkly.svg', dark: 'file:../../icons/sprkly.dark.svg' },
 		group: ['output'],
-		version: 1,
+		// 1.1: an empty Schedule Time is refused unless 'Post Now' is on. Version 1 posts it now.
+		version: [1, 1.1],
+		defaultVersion: 1.1,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
 		description: 'Schedule social media posts with sprkly',
 		defaults: {
@@ -133,6 +157,181 @@ export class Sprkly implements INodeType {
 			return iso;
 		};
 
+		// Accounts By Name reads the connected accounts once per run, not once per item.
+		let accountsRequest: Promise<IDataObject[]> | undefined;
+		const connectedAccounts = () =>
+			(accountsRequest ??= sprklyApiRequest
+				.call(this, 'GET', '/api/v1/connections')
+				.then((response) => (response.accounts as IDataObject[] | undefined) ?? []));
+
+		/** The body for POST /api/v1/posts. A problem with the item throws, before anything is sent. */
+		const createBody = async (i: number, resultRow: boolean): Promise<IDataObject> => {
+			const problem = (message: string) =>
+				new NodeOperationError(this.getNode(), message, { itemIndex: i });
+			const body: IDataObject = {};
+
+			const caption = this.getNodeParameter('caption', i, '') as string;
+			if (resultRow && !String(caption ?? '').trim()) throw problem('Caption is empty.');
+
+			// Version 1 sent an empty Schedule Time as "post now". From 1.1 that needs 'Post Now'.
+			const rawTime = this.getNodeParameter('scheduledTime', i, '');
+			const timeText = String(rawTime ?? '').trim();
+			if (timeText) {
+				if (isSlashDate(timeText)) {
+					throw problem(
+						`Schedule Time ${timeText} can be read two ways. Write it like 2026-12-01 09:00.`,
+					);
+				}
+				const iso = toApiTime(rawTime, timeZone);
+				if (!iso) {
+					throw problem(
+						`Schedule Time ${timeText} is not a time sprkly can read. Write it like 2026-12-01 09:00.`,
+					);
+				}
+				if (Date.parse(iso) <= Date.now()) {
+					throw problem(
+						`Schedule Time ${timeText} is in the past. Pick a time that has not come yet.`,
+					);
+				}
+				body.scheduledTime = iso;
+			} else if (this.getNode().typeVersion >= 1.1 && !this.getNodeParameter('postNow', i, false)) {
+				throw problem(
+					"Schedule Time is empty. Add a time, or turn on 'Post Now' to send it out within about a minute.",
+				);
+			}
+
+			const extra = this.getNodeParameter('additionalFields', i, {}) as IDataObject;
+			const mediaUrls = toUrlList(extra.mediaUrls);
+			if (resultRow) {
+				const bad = mediaUrls.find((url) => !/^https?:\/\//i.test(url));
+				if (bad) throw problem(`Media URL ${bad} is not a web link. It must start with https://.`);
+			}
+
+			if (this.getNodeParameter('accountMode', i, 'list') === 'name') {
+				const resolved = resolveAccountNames(
+					this.getNodeParameter('accountNames', i, ''),
+					await connectedAccounts(),
+				);
+				if ('problem' in resolved) throw problem(resolved.problem);
+				body.profileIds = resolved.ids;
+			} else {
+				body.profileIds = toList(this.getNodeParameter('profileIds', i));
+				if (resultRow && (body.profileIds as string[]).length === 0) {
+					throw problem('No account. Pick at least one.');
+				}
+			}
+
+			if (caption) body.caption = caption;
+			setMedia(body, this.getNodeParameter('mediaIds', i, ''));
+			if (extra.title) body.title = extra.title;
+			if (mediaUrls.length > 0) body.mediaUrls = mediaUrls;
+			if (extra.postType) body.postType = extra.postType;
+			if (extra.externalId !== undefined && String(extra.externalId).trim()) {
+				body.externalId = String(extra.externalId).trim();
+			}
+			if (extra.requiresApproval !== undefined) body.requiresApproval = extra.requiresApproval;
+			if (extra.approvalNote) body.approvalNote = extra.approvalNote;
+			if (extra.firstComment) body.firstComment = extra.firstComment;
+			const altText = altTextLines(extra.altText);
+			if (altText.length > 0) body.altText = altText;
+
+			const platformMeta = parseJsonObject(extra.platformMeta);
+			if (!platformMeta) {
+				throw problem(
+					'\'Platform Options (JSON)\' is not a JSON object. Use one like {"tiktok": {"brandContentOptIn": true}}.',
+				);
+			}
+			if (extra.tiktokPrivacyLevel) {
+				const tiktok = (platformMeta.tiktok as IDataObject | undefined) ?? {};
+				platformMeta.tiktok = { ...tiktok, privacyLevel: extra.tiktokPrivacyLevel };
+			}
+			if (Object.keys(platformMeta).length > 0) body.platformMeta = platformMeta;
+			return body;
+		};
+
+		/**
+		 * Create with Output = Result Row: one flat row per item, never an error for one item.
+		 * Only a rejected API key (401) still stops the run, because no row can work without it
+		 * and the rows then stay Approved for the next run.
+		 */
+		const createResultRow = async (i: number): Promise<IDataObject> => {
+			const extra = this.getNodeParameter('additionalFields', i, {}) as IDataObject;
+			const externalId = String(extra.externalId ?? '').trim();
+			const keep = this.getNodeParameter('keepInputFields', i, true) as boolean;
+			const row = (fields: Partial<ResultRow>): IDataObject => ({
+				...(keep ? items[i].json : {}),
+				ok: false,
+				status: 'Error',
+				postId: '',
+				postIds: [],
+				scheduledFor: '',
+				link: '',
+				error: '',
+				externalId,
+				...fields,
+			});
+			const isAuthFailure = (error: unknown) =>
+				error instanceof NodeApiError && error.httpCode === '401';
+
+			let response: RawResponse;
+			try {
+				const body = await createBody(i, true);
+				response = await sprklyApiRawRequest.call(this, 'POST', '/api/v1/posts', {
+					body,
+					itemIndex: i,
+				});
+			} catch (error) {
+				if (isAuthFailure(error)) {
+					throw new NodeApiError(this.getNode(), error as unknown as JsonObject, { itemIndex: i });
+				}
+				return row({ error: (error as Error).message });
+			}
+
+			const answer = response.body;
+			if (response.statusCode < 400) {
+				const ids = ((answer.postIds as unknown[] | undefined) ?? []).map(String);
+				return row({
+					ok: true,
+					status: 'Scheduled',
+					postId: ids.join(', '),
+					postIds: ids,
+					scheduledFor: textOf(answer.scheduledTime),
+				});
+			}
+			if (response.statusCode === 401) {
+				throw sprklyApiError(this.getNode(), 401, answer, response.headers, i);
+			}
+			if (response.statusCode === 409 && answer.code === 'duplicate_external_id') {
+				// A re-run of the same item: nothing new was posted. Report the first post.
+				const existingId = textOf(answer.existingPostId);
+				const existing = textOf(answer.existingStatus);
+				const status =
+					existing === 'posted' ? 'Published' : existing === 'failed' ? 'Failed' : 'Scheduled';
+				let post: IDataObject = {};
+				try {
+					post = await sprklyApiRequest.call(
+						this,
+						'GET',
+						`/api/v1/posts/${encodeURIComponent(existingId)}`,
+						{ itemIndex: i },
+					);
+				} catch {
+					// The row still gets the post ID without its time.
+				}
+				return row({
+					ok: true,
+					status,
+					postId: existingId,
+					postIds: existingId ? [existingId] : [],
+					scheduledFor: textOf(post.scheduledTime),
+					link: textOf(post.permalink),
+					error: status === 'Failed' ? textOf(post.failedReason) : '',
+				});
+			}
+			const { message, hint } = describeApiRefusal(response.statusCode, answer, response.headers);
+			return row({ error: [message, hint].filter(Boolean).join(' ') });
+		};
+
 		for (let i = 0; i < items.length; i++) {
 			try {
 				const resource = this.getNodeParameter('resource', i) as string;
@@ -187,45 +386,10 @@ export class Sprkly implements INodeType {
 						];
 					}
 				} else if (resource === 'post') {
-					if (operation === 'create') {
-						const body: IDataObject = {
-							profileIds: toList(this.getNodeParameter('profileIds', i)),
-						};
-						const caption = this.getNodeParameter('caption', i, '') as string;
-						if (caption) body.caption = caption;
-						const scheduledTime = this.getNodeParameter('scheduledTime', i, '');
-						if (scheduledTime) body.scheduledTime = timeOrThrow(scheduledTime, 'Schedule Time', i);
-						setMedia(body, this.getNodeParameter('mediaIds', i, ''));
-
-						const extra = this.getNodeParameter('additionalFields', i, {}) as IDataObject;
-						if (extra.title) body.title = extra.title;
-						const mediaUrls = toList(extra.mediaUrls);
-						if (mediaUrls.length > 0) body.mediaUrls = mediaUrls;
-						if (extra.postType) body.postType = extra.postType;
-						if (extra.externalId !== undefined && String(extra.externalId).trim()) {
-							body.externalId = String(extra.externalId).trim();
-						}
-						if (extra.requiresApproval !== undefined)
-							body.requiresApproval = extra.requiresApproval;
-						if (extra.approvalNote) body.approvalNote = extra.approvalNote;
-						if (extra.firstComment) body.firstComment = extra.firstComment;
-						const altText = altTextLines(extra.altText);
-						if (altText.length > 0) body.altText = altText;
-
-						const platformMeta = parseJsonObject(extra.platformMeta);
-						if (!platformMeta) {
-							throw new NodeOperationError(
-								this.getNode(),
-								'\'Platform Options (JSON)\' is not a JSON object. Use one like {"tiktok": {"brandContentOptIn": true}}.',
-								{ itemIndex: i },
-							);
-						}
-						if (extra.tiktokPrivacyLevel) {
-							const tiktok = (platformMeta.tiktok as IDataObject | undefined) ?? {};
-							platformMeta.tiktok = { ...tiktok, privacyLevel: extra.tiktokPrivacyLevel };
-						}
-						if (Object.keys(platformMeta).length > 0) body.platformMeta = platformMeta;
-
+					if (operation === 'create' && this.getNodeParameter('output', i, '') === 'resultRow') {
+						output = [await createResultRow(i)];
+					} else if (operation === 'create') {
+						const body = await createBody(i, false);
 						output = [
 							await sprklyApiRequest.call(this, 'POST', '/api/v1/posts', { body, itemIndex: i }),
 						];
