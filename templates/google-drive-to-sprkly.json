@@ -1,0 +1,407 @@
+{
+	"name": "Google Drive folder to sprkly",
+	"nodes": [
+		{
+			"id": "e8c6fe04-48be-4ddc-b4cb-c1fb511cb640",
+			"name": "Overview",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-1000,
+				-80
+			],
+			"parameters": {
+				"content": "## Post a file from Google Drive with sprkly\n\n### How it works\n- Drop a photo or a video into the folder you watch.\n- The file goes up to sprkly and is scheduled a few hours from now.\n- The caption is the file's description in Drive. A file with no description gets the default caption.\n- The post title is the file name. TikTok and YouTube need one.\n- External ID `drive-<file id>` means the same file never posts twice.\n- A scheduled file moves to your Posted folder. Anything else moves to Needs fix.\n\n### Setup\n- Needs the n8n-nodes-sprkly community node (Settings, Community Nodes).\n- Add your sprkly API key to the 2 sprkly nodes. API docs: https://sprkly.app/docs/api\n- Add your Google Drive login to the 4 Drive nodes.\n- Pick the folder to watch, a Posted folder and a Needs fix folder. Keep all three apart.\n- In **Settings**, write your accounts as platform:handle, with commas between them.\n- Set your time zone in Workflow settings.\n\n### Customize\n- Change the hours and the default caption in **Settings**.\n- Turn on Requires Approval in **Schedule post in sprkly** to check each post first.\n- More: https://github.com/ahlanlhw/n8n-nodes-sprkly",
+				"height": 760,
+				"width": 520,
+				"color": 1
+			}
+		},
+		{
+			"id": "95599484-19e4-48e0-90d0-99cf54ae469c",
+			"name": "Note: post the file",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-440,
+				60
+			],
+			"parameters": {
+				"content": "## Post the file\nOnly photos and videos go on. Upload takes files up to 50 MB. A bigger file, or one sprkly cannot take, goes to Needs fix.",
+				"height": 440,
+				"width": 1360,
+				"color": 7
+			}
+		},
+		{
+			"id": "db56b986-ed46-4634-81bf-e62c3f4feb69",
+			"name": "Note: sort the file",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				960,
+				60
+			],
+			"parameters": {
+				"content": "## Sort the file\nA scheduled file moves to Posted. A file that was not scheduled moves to Needs fix, so you can see what to change.",
+				"height": 640,
+				"width": 460,
+				"color": 7
+			}
+		},
+		{
+			"id": "0e0d6bb8-b4bc-473c-8a12-d43f50ee38a7",
+			"name": "New file in folder",
+			"type": "n8n-nodes-base.googleDriveTrigger",
+			"typeVersion": 1,
+			"position": [
+				-400,
+				320
+			],
+			"parameters": {
+				"pollTimes": {
+					"item": [
+						{
+							"mode": "everyMinute"
+						}
+					]
+				},
+				"triggerOn": "specificFolder",
+				"folderToWatch": {
+					"__rl": true,
+					"value": "",
+					"mode": "list"
+				},
+				"event": "fileCreated",
+				"options": {}
+			}
+		},
+		{
+			"id": "2c73b35e-03af-46cd-afad-5b61b363e332",
+			"name": "Settings",
+			"type": "n8n-nodes-base.set",
+			"typeVersion": 3.4,
+			"position": [
+				-180,
+				320
+			],
+			"parameters": {
+				"assignments": {
+					"assignments": [
+						{
+							"id": "f1",
+							"name": "accounts",
+							"type": "string",
+							"value": "instagram:yourhandle, threads:yourhandle"
+						},
+						{
+							"id": "f2",
+							"name": "hoursFromNow",
+							"type": "number",
+							"value": 3
+						},
+						{
+							"id": "f3",
+							"name": "defaultCaption",
+							"type": "string",
+							"value": "Something new from us."
+						}
+					]
+				},
+				"includeOtherFields": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "ee7ba18f-e08d-4814-ad14-38f9ba874380",
+			"name": "Photo or video?",
+			"type": "n8n-nodes-base.if",
+			"typeVersion": 2.2,
+			"position": [
+				40,
+				320
+			],
+			"parameters": {
+				"conditions": {
+					"options": {
+						"caseSensitive": true,
+						"leftValue": "",
+						"typeValidation": "loose",
+						"version": 2
+					},
+					"conditions": [
+						{
+							"id": "c1",
+							"leftValue": "={{ /^(image|video)\\//.test($json.mimeType || '') }}",
+							"rightValue": "",
+							"operator": {
+								"type": "boolean",
+								"operation": "true",
+								"singleValue": true
+							}
+						}
+					],
+					"combinator": "and"
+				},
+				"looseTypeValidation": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "2a003b53-8d92-4532-8396-d420b7983628",
+			"name": "Download file",
+			"type": "n8n-nodes-base.googleDrive",
+			"typeVersion": 3,
+			"position": [
+				260,
+				220
+			],
+			"parameters": {
+				"operation": "download",
+				"fileId": {
+					"__rl": true,
+					"value": "={{ $json.id }}",
+					"mode": "id"
+				},
+				"options": {}
+			}
+		},
+		{
+			"id": "c63cb1b3-d93a-428d-9ce2-734d99ba8439",
+			"name": "Upload to sprkly",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				480,
+				220
+			],
+			"parameters": {
+				"resource": "media",
+				"operation": "upload",
+				"binaryPropertyName": "data"
+			},
+			"onError": "continueErrorOutput"
+		},
+		{
+			"id": "7550edc8-5bb3-433e-ae43-d0ac68d9909d",
+			"name": "Schedule post in sprkly",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				700,
+				220
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "create",
+				"accountMode": "name",
+				"accountNames": "={{ $('Settings').item.json.accounts }}",
+				"caption": "={{ ($('Settings').item.json.description || '').trim() || $('Settings').item.json.defaultCaption }}",
+				"scheduledTime": "={{ $now.plus({ hours: Number($('Settings').item.json.hoursFromNow) || 1 }).toISO() }}",
+				"mediaIds": "={{ $json.mediaId }}",
+				"output": "resultRow",
+				"additionalFields": {
+					"title": "={{ $('Settings').item.json.name.replace(/\\.[^.]+$/, '').slice(0, 100) }}",
+					"externalId": "={{ 'drive-' + $('Settings').item.json.id }}",
+					"requireExternalId": true
+				}
+			}
+		},
+		{
+			"id": "6f7fff7d-de52-4a25-9256-e4431b3d7139",
+			"name": "Scheduled?",
+			"type": "n8n-nodes-base.if",
+			"typeVersion": 2.2,
+			"position": [
+				920,
+				220
+			],
+			"parameters": {
+				"conditions": {
+					"options": {
+						"caseSensitive": true,
+						"leftValue": "",
+						"typeValidation": "loose",
+						"version": 2
+					},
+					"conditions": [
+						{
+							"id": "c1",
+							"leftValue": "={{ $json.ok === true }}",
+							"rightValue": "",
+							"operator": {
+								"type": "boolean",
+								"operation": "true",
+								"singleValue": true
+							}
+						}
+					],
+					"combinator": "and"
+				},
+				"looseTypeValidation": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "9cf03656-4a7d-47cb-9c82-1de88da0e894",
+			"name": "Move to Posted",
+			"type": "n8n-nodes-base.googleDrive",
+			"typeVersion": 3,
+			"position": [
+				1140,
+				220
+			],
+			"parameters": {
+				"operation": "move",
+				"fileId": {
+					"__rl": true,
+					"value": "={{ $('Settings').item.json.id }}",
+					"mode": "id"
+				},
+				"driveId": {
+					"__rl": true,
+					"value": "My Drive",
+					"mode": "list"
+				},
+				"folderId": {
+					"__rl": true,
+					"value": "",
+					"mode": "list"
+				}
+			}
+		},
+		{
+			"id": "3b90f4a8-4197-4874-a4cd-5bd51460b093",
+			"name": "Move to Needs fix",
+			"type": "n8n-nodes-base.googleDrive",
+			"typeVersion": 3,
+			"position": [
+				1140,
+				500
+			],
+			"parameters": {
+				"operation": "move",
+				"fileId": {
+					"__rl": true,
+					"value": "={{ $('Settings').item.json.id }}",
+					"mode": "id"
+				},
+				"driveId": {
+					"__rl": true,
+					"value": "My Drive",
+					"mode": "list"
+				},
+				"folderId": {
+					"__rl": true,
+					"value": "",
+					"mode": "list"
+				}
+			}
+		}
+	],
+	"connections": {
+		"New file in folder": {
+			"main": [
+				[
+					{
+						"node": "Settings",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Settings": {
+			"main": [
+				[
+					{
+						"node": "Photo or video?",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Photo or video?": {
+			"main": [
+				[
+					{
+						"node": "Download file",
+						"type": "main",
+						"index": 0
+					}
+				],
+				[
+					{
+						"node": "Move to Needs fix",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Download file": {
+			"main": [
+				[
+					{
+						"node": "Upload to sprkly",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Upload to sprkly": {
+			"main": [
+				[
+					{
+						"node": "Schedule post in sprkly",
+						"type": "main",
+						"index": 0
+					}
+				],
+				[
+					{
+						"node": "Move to Needs fix",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Schedule post in sprkly": {
+			"main": [
+				[
+					{
+						"node": "Scheduled?",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Scheduled?": {
+			"main": [
+				[
+					{
+						"node": "Move to Posted",
+						"type": "main",
+						"index": 0
+					}
+				],
+				[
+					{
+						"node": "Move to Needs fix",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		}
+	},
+	"pinData": {},
+	"active": false,
+	"settings": {
+		"executionOrder": "v1"
+	}
+}

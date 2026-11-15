@@ -1,0 +1,170 @@
+{
+	"name": "YouTube channel to sprkly",
+	"nodes": [
+		{
+			"id": "91691d28-9fcd-457b-9643-c4beb5670122",
+			"name": "Overview",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-1000,
+				-80
+			],
+			"parameters": {
+				"content": "## Announce each new YouTube video with sprkly\n\n### How it works\n- Every 15 minutes it checks your channel's public feed for a new video.\n- A new video becomes one post on your other accounts, 15 minutes later.\n- The caption is the video's title and its link. The image is the video's thumbnail.\n- External ID `yt-<video id>` means a video is never announced twice.\n- You get a Telegram message with the time, or with what went wrong.\n\n### Setup\n- Needs the n8n-nodes-sprkly community node (Settings, Community Nodes).\n- Add your sprkly API key to **Announce in sprkly**. API docs: https://sprkly.app/docs/api\n- In **New video on your channel**, put your channel ID in place of YOUR_CHANNEL_ID. It starts with UC, and you find it in YouTube Studio under Settings, Channel, Advanced settings.\n- In **Settings**, write your accounts as platform:handle, with commas between them. Leave YouTube out.\n- Add your bot token to **Send result to Telegram**, and your chat ID in **Settings**.\n\n### Customize\n- Change the wording in **Announce in sprkly**.\n- Use maxresdefault in place of hqdefault in the image link for a sharper image, when every video is HD.\n- More: https://github.com/ahlanlhw/n8n-nodes-sprkly",
+				"height": 760,
+				"width": 520,
+				"color": 1
+			}
+		},
+		{
+			"id": "57cb542f-5c4f-4da9-9b5e-95b5acc85d24",
+			"name": "Note: announce",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-440,
+				60
+			],
+			"parameters": {
+				"content": "## Announce the video\nNo YouTube login is needed. The feed is public. Instagram and TikTok need an image, so the thumbnail goes on every post.",
+				"height": 440,
+				"width": 920,
+				"color": 7
+			}
+		},
+		{
+			"id": "c551175a-e8f5-4e8a-944c-4ff6c93530e5",
+			"name": "New video on your channel",
+			"type": "n8n-nodes-base.rssFeedReadTrigger",
+			"typeVersion": 1,
+			"position": [
+				-400,
+				320
+			],
+			"parameters": {
+				"pollTimes": {
+					"item": [
+						{
+							"mode": "everyX",
+							"value": 15,
+							"unit": "minutes"
+						}
+					]
+				},
+				"feedUrl": "https://www.youtube.com/feeds/videos.xml?channel_id=YOUR_CHANNEL_ID"
+			}
+		},
+		{
+			"id": "af54660b-3cf5-4d47-a627-87ccdd75101a",
+			"name": "Settings",
+			"type": "n8n-nodes-base.set",
+			"typeVersion": 3.4,
+			"position": [
+				-180,
+				320
+			],
+			"parameters": {
+				"assignments": {
+					"assignments": [
+						{
+							"id": "f1",
+							"name": "accounts",
+							"type": "string",
+							"value": "instagram:yourhandle, facebook:Your Page, x:yourhandle, threads:yourhandle"
+						},
+						{
+							"id": "f2",
+							"name": "telegramChatId",
+							"type": "string",
+							"value": "YOUR_CHAT_ID"
+						}
+					]
+				},
+				"includeOtherFields": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "9733d356-702d-49dd-9cb0-468ef4223cff",
+			"name": "Announce in sprkly",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				40,
+				320
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "create",
+				"accountMode": "name",
+				"accountNames": "={{ $json.accounts }}",
+				"caption": "={{ 'New video: ' + $json.title + '\\n\\n' + $json.link }}",
+				"scheduledTime": "={{ $now.plus({ minutes: 15 }).toISO() }}",
+				"output": "resultRow",
+				"additionalFields": {
+					"mediaUrls": "={{ 'https://i.ytimg.com/vi/' + String($json.id || '').replace('yt:video:', '') + '/hqdefault.jpg' }}",
+					"externalId": "={{ String($json.id || '').replace('yt:video:', '') ? 'yt-' + String($json.id || '').replace('yt:video:', '') : '' }}",
+					"requireExternalId": true
+				}
+			}
+		},
+		{
+			"id": "b18f3e55-2300-4c88-8ba8-fec0b5b45196",
+			"name": "Send result to Telegram",
+			"type": "n8n-nodes-base.telegram",
+			"typeVersion": 1.2,
+			"position": [
+				260,
+				320
+			],
+			"parameters": {
+				"chatId": "={{ $('Settings').item.json.telegramChatId }}",
+				"text": "={{ $json.ok ? 'Video post scheduled for ' + $json.scheduledFor + ': ' + $json.title : 'Video post not scheduled: ' + $json.title + '. ' + $json.error }}",
+				"additionalFields": {
+					"appendAttribution": false
+				}
+			}
+		}
+	],
+	"connections": {
+		"New video on your channel": {
+			"main": [
+				[
+					{
+						"node": "Settings",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Settings": {
+			"main": [
+				[
+					{
+						"node": "Announce in sprkly",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Announce in sprkly": {
+			"main": [
+				[
+					{
+						"node": "Send result to Telegram",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		}
+	},
+	"pinData": {},
+	"active": false,
+	"settings": {
+		"executionOrder": "v1"
+	}
+}

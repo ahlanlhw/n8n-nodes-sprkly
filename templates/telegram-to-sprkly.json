@@ -1,0 +1,464 @@
+{
+	"name": "Telegram bot to sprkly",
+	"nodes": [
+		{
+			"id": "a66fd817-fdd4-417d-9abc-0900a9787a41",
+			"name": "Overview",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-1000,
+				-80
+			],
+			"parameters": {
+				"content": "## Post from your Telegram bot with sprkly\n\n### How it works\n- Send your own bot a photo or a video, with the caption in the message.\n- The bot checks that the message comes from your chat. Messages from anyone else are dropped.\n- The file goes up to sprkly and is scheduled one hour from now.\n- External ID `tg-<chat id>-<message id>` means one message makes one post.\n- The bot answers with the time, or with what went wrong.\n- When the post goes out or fails, the bot tells you, with the link or the reason.\n\n### Setup\n- Needs the n8n-nodes-sprkly community node (Settings, Community Nodes).\n- Add your sprkly API key to the 4 sprkly nodes. API docs: https://sprkly.app/docs/api\n- Make a bot with BotFather and add its token to the 5 Telegram nodes.\n- In **Settings**, put your own chat ID in myChatId. Your chat ID is message.chat.id in a test run of the trigger.\n- In **Settings**, write your accounts as platform:handle, with commas between them.\n\n### Customize\n- Change the time in **Schedule post in sprkly**.\n- Turn on Requires Approval there to check each post first.\n- More: https://github.com/ahlanlhw/n8n-nodes-sprkly",
+				"height": 760,
+				"width": 520,
+				"color": 1
+			}
+		},
+		{
+			"id": "615b28a4-3f21-4c99-bb7c-4bbf71d7fea9",
+			"name": "Note: only you",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-440,
+				60
+			],
+			"parameters": {
+				"content": "## Only you can post\nThe bot takes messages from your own chat ID only. Keep this check. Without it, anyone who finds your bot could post to your accounts.",
+				"height": 560,
+				"width": 700,
+				"color": 7
+			}
+		},
+		{
+			"id": "1b44d2c7-2e32-4264-b1ff-a7967f2a2a76",
+			"name": "Note: schedule",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				300,
+				60
+			],
+			"parameters": {
+				"content": "## Schedule and answer\nTelegram lets a bot download files up to 20 MB. A message with no caption gets an error back, and nothing is posted.",
+				"height": 560,
+				"width": 1080,
+				"color": 7
+			}
+		},
+		{
+			"id": "8f838892-7919-4620-97a9-ef9e9c003013",
+			"name": "Note: tell me",
+			"type": "n8n-nodes-base.stickyNote",
+			"typeVersion": 1,
+			"position": [
+				-440,
+				700
+			],
+			"parameters": {
+				"content": "## Tell me when it goes out\nOnly posts with an External ID that starts with tg- reach this part. The chat ID is read back from that ID.",
+				"height": 420,
+				"width": 760,
+				"color": 7
+			}
+		},
+		{
+			"id": "f00fdea5-fbb9-4381-8126-4298c5e332f9",
+			"name": "Telegram message",
+			"type": "n8n-nodes-base.telegramTrigger",
+			"typeVersion": 1.2,
+			"position": [
+				-400,
+				320
+			],
+			"parameters": {
+				"updates": [
+					"message"
+				],
+				"additionalFields": {}
+			}
+		},
+		{
+			"id": "55d155fa-7267-4498-80f0-4b8b78bdfc4c",
+			"name": "Settings",
+			"type": "n8n-nodes-base.set",
+			"typeVersion": 3.4,
+			"position": [
+				-180,
+				320
+			],
+			"parameters": {
+				"assignments": {
+					"assignments": [
+						{
+							"id": "f1",
+							"name": "myChatId",
+							"type": "string",
+							"value": "YOUR_CHAT_ID"
+						},
+						{
+							"id": "f2",
+							"name": "accounts",
+							"type": "string",
+							"value": "instagram:yourhandle, tiktok:yourhandle"
+						}
+					]
+				},
+				"includeOtherFields": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "2dd767c7-f0f6-4393-8d82-0ae645f98b94",
+			"name": "From my chat?",
+			"type": "n8n-nodes-base.if",
+			"typeVersion": 2.2,
+			"position": [
+				40,
+				320
+			],
+			"parameters": {
+				"conditions": {
+					"options": {
+						"caseSensitive": true,
+						"leftValue": "",
+						"typeValidation": "loose",
+						"version": 2
+					},
+					"conditions": [
+						{
+							"id": "c1",
+							"leftValue": "={{ String($json.message?.chat?.id ?? '') === String($json.myChatId ?? '').trim() }}",
+							"rightValue": "",
+							"operator": {
+								"type": "boolean",
+								"operation": "true",
+								"singleValue": true
+							}
+						}
+					],
+					"combinator": "and"
+				},
+				"looseTypeValidation": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "9ca065c4-462a-4263-bc92-ad2bf832445d",
+			"name": "Photo or video?",
+			"type": "n8n-nodes-base.if",
+			"typeVersion": 2.2,
+			"position": [
+				340,
+				320
+			],
+			"parameters": {
+				"conditions": {
+					"options": {
+						"caseSensitive": true,
+						"leftValue": "",
+						"typeValidation": "loose",
+						"version": 2
+					},
+					"conditions": [
+						{
+							"id": "c1",
+							"leftValue": "={{ !!($json.message.photo || $json.message.video) }}",
+							"rightValue": "",
+							"operator": {
+								"type": "boolean",
+								"operation": "true",
+								"singleValue": true
+							}
+						}
+					],
+					"combinator": "and"
+				},
+				"looseTypeValidation": true,
+				"options": {}
+			}
+		},
+		{
+			"id": "c839e210-aeff-4084-b9dd-fdcb70131e8b",
+			"name": "Ask for a photo or video",
+			"type": "n8n-nodes-base.telegram",
+			"typeVersion": 1.2,
+			"position": [
+				560,
+				480
+			],
+			"parameters": {
+				"chatId": "={{ $json.message.chat.id }}",
+				"text": "Send a photo or a video with a caption.",
+				"additionalFields": {
+					"appendAttribution": false
+				}
+			}
+		},
+		{
+			"id": "d23ae7a8-19ef-498a-819d-5b81f6bb2c2a",
+			"name": "Download from Telegram",
+			"type": "n8n-nodes-base.telegram",
+			"typeVersion": 1.2,
+			"position": [
+				560,
+				220
+			],
+			"parameters": {
+				"resource": "file",
+				"operation": "get",
+				"fileId": "={{ $json.message.photo ? $json.message.photo[$json.message.photo.length - 1].file_id : $json.message.video.file_id }}",
+				"download": true,
+				"additionalFields": {}
+			}
+		},
+		{
+			"id": "84c700a2-0463-40bf-a88d-85a4e64053b4",
+			"name": "Upload to sprkly",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				780,
+				220
+			],
+			"parameters": {
+				"resource": "media",
+				"operation": "upload",
+				"binaryPropertyName": "data"
+			},
+			"onError": "continueErrorOutput"
+		},
+		{
+			"id": "cfdab967-e36b-4e4b-8c10-9d03d354bce1",
+			"name": "Schedule post in sprkly",
+			"type": "n8n-nodes-sprkly.sprkly",
+			"typeVersion": 1.1,
+			"position": [
+				1000,
+				220
+			],
+			"parameters": {
+				"resource": "post",
+				"operation": "create",
+				"accountMode": "name",
+				"accountNames": "={{ $('Settings').item.json.accounts }}",
+				"caption": "={{ $('Settings').item.json.message.caption || '' }}",
+				"scheduledTime": "={{ $now.plus({ hours: 1 }).toISO() }}",
+				"mediaIds": "={{ $json.mediaId }}",
+				"output": "resultRow",
+				"additionalFields": {
+					"requiresApproval": false,
+					"externalId": "={{ 'tg-' + $('Settings').item.json.message.chat.id + '-' + $('Settings').item.json.message.message_id }}",
+					"requireExternalId": true
+				}
+			}
+		},
+		{
+			"id": "771cfe52-d698-417f-83b2-c10d264a7f3e",
+			"name": "Reply with result",
+			"type": "n8n-nodes-base.telegram",
+			"typeVersion": 1.2,
+			"position": [
+				1220,
+				320
+			],
+			"parameters": {
+				"chatId": "={{ $('Settings').item.json.message.chat.id }}",
+				"text": "={{ $json.ok ? 'Scheduled for ' + $json.scheduledFor + '.' : 'Not scheduled. ' + $json.error }}",
+				"additionalFields": {
+					"appendAttribution": false,
+					"reply_to_message_id": "={{ $('Settings').item.json.message.message_id }}"
+				}
+			}
+		},
+		{
+			"id": "c241a7d7-4e42-48ff-96f2-d74e70e74e3d",
+			"name": "When a post goes out",
+			"type": "n8n-nodes-sprkly.sprklyTrigger",
+			"typeVersion": 1,
+			"position": [
+				-400,
+				840
+			],
+			"parameters": {
+				"pollTimes": {
+					"item": [
+						{
+							"mode": "everyX",
+							"value": 5,
+							"unit": "minutes"
+						}
+					]
+				},
+				"event": "postPublished",
+				"externalIdPrefix": "tg-",
+				"stripPrefix": true
+			}
+		},
+		{
+			"id": "8862c525-a07b-474f-a620-0f50cf5742a9",
+			"name": "When a post fails",
+			"type": "n8n-nodes-sprkly.sprklyTrigger",
+			"typeVersion": 1,
+			"position": [
+				-400,
+				1000
+			],
+			"parameters": {
+				"pollTimes": {
+					"item": [
+						{
+							"mode": "everyX",
+							"value": 5,
+							"unit": "minutes"
+						}
+					]
+				},
+				"event": "postFailed",
+				"externalIdPrefix": "tg-",
+				"stripPrefix": true
+			}
+		},
+		{
+			"id": "66e7dd65-ff7e-4741-ae20-e291e3493654",
+			"name": "Tell me on Telegram",
+			"type": "n8n-nodes-base.telegram",
+			"typeVersion": 1.2,
+			"position": [
+				-120,
+				920
+			],
+			"parameters": {
+				"chatId": "={{ $json.sourceId.replace(/-\\d+$/, '') }}",
+				"text": "={{ $json.statusLabel === 'Published' ? 'Your post is live: ' + $json.link : 'Your post failed: ' + $json.error }}",
+				"additionalFields": {
+					"appendAttribution": false
+				}
+			}
+		}
+	],
+	"connections": {
+		"Telegram message": {
+			"main": [
+				[
+					{
+						"node": "Settings",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Settings": {
+			"main": [
+				[
+					{
+						"node": "From my chat?",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"From my chat?": {
+			"main": [
+				[
+					{
+						"node": "Photo or video?",
+						"type": "main",
+						"index": 0
+					}
+				],
+				[]
+			]
+		},
+		"Photo or video?": {
+			"main": [
+				[
+					{
+						"node": "Download from Telegram",
+						"type": "main",
+						"index": 0
+					}
+				],
+				[
+					{
+						"node": "Ask for a photo or video",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Download from Telegram": {
+			"main": [
+				[
+					{
+						"node": "Upload to sprkly",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Upload to sprkly": {
+			"main": [
+				[
+					{
+						"node": "Schedule post in sprkly",
+						"type": "main",
+						"index": 0
+					}
+				],
+				[
+					{
+						"node": "Reply with result",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"Schedule post in sprkly": {
+			"main": [
+				[
+					{
+						"node": "Reply with result",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"When a post goes out": {
+			"main": [
+				[
+					{
+						"node": "Tell me on Telegram",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		},
+		"When a post fails": {
+			"main": [
+				[
+					{
+						"node": "Tell me on Telegram",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		}
+	},
+	"pinData": {},
+	"active": false,
+	"settings": {
+		"executionOrder": "v1"
+	}
+}
