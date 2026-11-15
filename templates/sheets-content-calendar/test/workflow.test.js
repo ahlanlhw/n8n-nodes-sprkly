@@ -109,7 +109,8 @@ test('one yellow overview of 100 to 300 words, other notes white and under 50 wo
 });
 
 test('no em or en dashes', () => {
-	assert.doesNotMatch(text, /[–—]/);
+	const dashes = new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`);
+	assert.doesNotMatch(text, dashes);
 });
 
 test('sprkly nodes: type, version and every parameter exist in the built node', () => {
