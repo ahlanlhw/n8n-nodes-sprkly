@@ -4,3 +4,11 @@ node_modules
 *.log
 .env
 .env.*
+*.env
+.dev.vars
+.dev.vars.*
+.claude/settings.json
+.claude/settings.local.json
+.mcp.json
+.npmrc
+*.pem
